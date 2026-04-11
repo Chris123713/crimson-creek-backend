@@ -101,28 +101,28 @@ router.post('/', requireAuth, async (req, res) => {
           `\u2022 ${has_microphone}`,
           ``,
           `**Do you have previous roleplay experience? If so, please list them.**`,
-          `\u2022 ${rp_experience.substring(0, 800)}${rp_experience.length > 800 ? '...' : ''}`,
+          `\u2022 ${rp_experience}`,
           ``,
           `**Provide clips of past RP** *(prefer twitch, youtube, or medal)*`,
-          `\u2022 ${(rp_clips || 'N/A').substring(0, 500)}`,
+          `\u2022 ${rp_clips || 'N/A'}`,
           ``,
           `**Have you ever been banned from a RedM or FiveM Server? If so which ones and why?**`,
           `\u2022 ${been_banned}`,
           ``,
           `**What are you looking forward to doing the most on Crimson Creek and why?** *(Minimum 100 words)*`,
-          `\u2022 ${looking_forward.substring(0, 1000)}${looking_forward.length > 1000 ? '...' : ''}`,
+          `\u2022 ${looking_forward}`,
           ``,
           `**In your own words, what is FailRP? Please also give an example.** *(Minimum 100 words)*`,
-          `\u2022 ${what_is_failrp.substring(0, 1000)}${what_is_failrp.length > 1000 ? '...' : ''}`,
+          `\u2022 ${what_is_failrp}`,
           ``,
           `**What is powergaming? Give an example.**`,
-          `\u2022 ${what_is_powergaming.substring(0, 500)}${what_is_powergaming.length > 500 ? '...' : ''}`,
+          `\u2022 ${what_is_powergaming}`,
           ``,
           `**What is the cooldown time for personal robberies between the same groups or individuals?**`,
           `\u2022 ${robbery_cooldown}`,
           ``,
           `**Your character is wrongly accused of a crime, how do you roleplay that scene to keep it immersive?**`,
-          `\u2022 ${wrongful_accusation.substring(0, 800)}${wrongful_accusation.length > 800 ? '...' : ''}`,
+          `\u2022 ${wrongful_accusation}`,
           ``,
           `*By submitting this application, you acknowledge that Crimson Creek is a serious story driven roleplay community.*`,
         ].join('\n');
@@ -139,6 +139,8 @@ router.post('/', requireAuth, async (req, res) => {
         console.log(`[APP] Forum thread created: ${JSON.stringify(threadData.id)}`);
         if (threadData.id) {
           await db('applications').where('id', id).update({ thread_id: threadData.id });
+        } else {
+          console.error('[APP] Thread creation failed:', JSON.stringify(threadData));
         }
       }
     } catch (e) { console.error('Failed to post application forum thread:', e); }
