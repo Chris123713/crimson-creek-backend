@@ -98,11 +98,21 @@ adminRouter.get('/sessions', requireAuth, requirePermission('canViewStaffPanel')
 
 adminRouter.delete('/sessions/:sid', requireAuth, requirePermission('canManageUsers'), async (req, res) => {
   try {
-    const row = await db('sessions').where('sid', req.params.sid).first();
+    const sseClients = req.app.locals.sseClients;
+    const targetSid = req.params.sid;
+    const row = await db('sessions').where('sid', targetSid).first();
     let targetUsername = 'unknown';
     if (row) { try { targetUsername = JSON.parse(row.sess)?.user?.username || 'unknown'; } catch (_) {} }
-    await db('sessions').where('sid', req.params.sid).delete();
-    await logAction('session_force_logout', req.session.user.id, req.params.sid, { target_username: targetUsername });
+
+    // Push force_logout SSE event BEFORE deleting session so client is still connected
+    const targetSSE = sseClients.get(targetSid);
+    if (targetSSE) {
+      targetSSE.write('event: force_logout\ndata: {}\n\n');
+      sseClients.delete(targetSid);
+    }
+
+    await db('sessions').where('sid', targetSid).delete();
+    await logAction('session_force_logout', req.session.user.id, targetSid, { target_username: targetUsername });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -152,5 +162,31 @@ adminRouter.post('/assign-settler-role', requireAuth, requirePermission('canView
     res.status(500).json({ error: err.message });
   }
 });
+
+// ── SSE: session keep-alive + force-logout channel ───────────────────────────
+adminRouter.get('/sse-session', requireAuth, (req, res) => {
+  const sseClients = req.app.locals.sseClients;
+  const sid = req.sessionID;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  // Send a heartbeat every 25s to keep connection alive
+  res.write(': heartbeat\n\n');
+  const heartbeat = setInterval(() => {
+    res.write(': heartbeat\n\n');
+  }, 25000);
+
+  sseClients.set(sid, res);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    sseClients.delete(sid);
+  });
+});
+
 
 module.exports = { ticketRouter, adminRouter };

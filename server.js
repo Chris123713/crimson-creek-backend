@@ -13,6 +13,10 @@ const txAdminRouter = require('./routes/txadmin');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// ── SSE session store — maps session ID → SSE response object ─────────────────
+const sseClients = new Map();
+app.locals.sseClients = sseClients;
+
 setupDatabase();
 
 app.use(express.json());
