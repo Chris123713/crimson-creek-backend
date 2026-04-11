@@ -107,7 +107,8 @@ router.get('/discord/callback', async (req, res) => {
       discordRoles: userRoleNames,
     };
 
-    res.redirect('/dashboard');
+    const FRONTEND = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${FRONTEND}?login=success`);
   } catch (err) {
     console.error('OAuth error:', err);
     res.redirect('/?error=auth_failed');

@@ -16,6 +16,8 @@ const PORT = process.env.PORT || 3001;
 setupDatabase();
 
 app.use(express.json());
+const isProduction = process.env.NODE_ENV === 'production';
+
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
@@ -26,8 +28,9 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
+    secure: isProduction,
     httpOnly: true,
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 }));
