@@ -108,7 +108,16 @@ router.get('/discord/callback', async (req, res) => {
     };
 
     const FRONTEND = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${FRONTEND}?login=success`);
+    const userData = encodeURIComponent(JSON.stringify({
+      id: discordUser.id,
+      username: discordUser.username,
+      avatar: discordUser.avatar,
+      role: siteRole,
+      subTier: perms.subTier,
+      permissions: perms,
+      discordRoles: userRoleNames,
+    }));
+    res.redirect(`${FRONTEND}?login=success&user=${userData}`);
   } catch (err) {
     console.error('OAuth error:', err);
     res.redirect('/?error=auth_failed');
