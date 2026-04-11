@@ -38,7 +38,7 @@ router.post('/', requireAuth, async (req, res) => {
     } = req.body;
 
     // Always use the authenticated user's Discord info — never trust the form
-    const discord_tag = user.username;  // username shown in application & Discord thread
+    const discord_tag = user.id;  // numeric ID shown in the application thread
 
     // Required field check
     const required = { discord_tag, age_confirm, has_microphone, rp_experience, been_banned, looking_forward, what_is_failrp, what_is_powergaming, robbery_cooldown, wrongful_accusation, secret_code };
@@ -222,7 +222,7 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
                 : 'Your whitelist application has been **denied**. You are welcome to apply again in the future.',
               color: isApproved ? 0x4a9e4a : 0xe74c3c,
               fields: [
-                { name: 'Discord Tag', value: application.discord_tag || 'N/A', inline: true },
+                { name: 'Discord Tag', value: application.player || 'N/A', inline: true },
                 ...(reviewer_note ? [{ name: 'Staff Note', value: reviewer_note, inline: false }] : []),
               ],
               footer: { text: 'Crimson Creek RP' },
@@ -245,7 +245,7 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
                 : `**${application.player}**'s whitelist application has been denied.`,
               color: 0x000000,
               fields: [
-                { name: 'Discord Tag', value: application.discord_tag || 'N/A', inline: true },
+                { name: 'Discord Tag', value: application.player || 'N/A', inline: true },
                 ...(reviewer_note ? [{ name: 'Staff Note', value: reviewer_note, inline: false }] : []),
               ],
               footer: { text: `Application ID: ${application.id} - Crimson Creek RP • Today at ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` },
