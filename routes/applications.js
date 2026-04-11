@@ -34,32 +34,31 @@ router.post('/', requireAuth, async (req, res) => {
     const [id] = await db('applications').insert({ user_id: user.id, player: user.username, discord_tag, age: parseInt(age), rp_experience, char_name, char_background, why_join });
     await logAction('application_submitted', user.id, id, { discord_tag, char_name });
 
-    // Post application to Discord channel
+    // Post application as a forum thread
     try {
       const fetch = require('node-fetch');
       const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
       const CHANNEL_ID = process.env.APPLICATIONS_CHANNEL_ID;
       if (BOT_TOKEN && CHANNEL_ID) {
-        await fetch(`https://discord.com/api/v10/channels/${CHANNEL_ID}/messages`, {
+        const threadRes = await fetch(`https://discord.com/api/v10/channels/${CHANNEL_ID}/threads`, {
           method: 'POST',
           headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ embeds: [{
-            title: `New Whitelist Application - ${user.username}`,
-            color: 0xc9a84c,
-            fields: [
-              { name: 'Discord Tag', value: discord_tag, inline: true },
-              { name: 'Age', value: String(age), inline: true },
-              { name: 'Character Name', value: char_name, inline: true },
-              { name: 'RP Experience', value: rp_experience.substring(0, 500), inline: false },
-              { name: 'Character Background', value: char_background.substring(0, 1000) + (char_background.length > 1000 ? '...' : ''), inline: false },
-              { name: 'Why Join', value: why_join.substring(0, 500) + (why_join.length > 500 ? '...' : ''), inline: false },
-            ],
-            footer: { text: `Application ID: ${id} - Crimson Creek RP` },
-            timestamp: new Date().toISOString(),
-          }] }),
+          body: JSON.stringify({
+            name: `${user.username}'s Whitelist`,
+            message: {
+              content: `**Whitelisted App**\n\n**Discord ID:**\n\u2022 ${discord_tag}\n\n**Age:**\n\u2022 ${age}\n\n**Do you have previous roleplay experience?**\n\u2022 ${rp_experience.substring(0, 500)}\n\n**Character Name:**\n\u2022 ${char_name}\n\n**Character Background:**\n\u2022 ${char_background.substring(0, 1000)}${char_background.length > 1000 ? '...' : ''}\n\n**Why do you want to join Crimson Creek?**\n\u2022 ${why_join.substring(0, 500)}${why_join.length > 500 ? '...' : ''}\n\n*By submitting this application, you acknowledge that Crimson Creek is a serious story driven roleplay community.*`,
+            },
+          }),
         });
+        const threadData = await threadRes.json();
+        console.log(`[APP] Forum thread created: ${JSON.stringify(threadData.id)}`);
+        // Store thread ID for later result post
+        if (threadData.id) {
+          await db('applications').where('id', id).update({ reviewer_note: threadData.id });
+          // We store thread ID temporarily — it gets overwritten on review, that's fine
+        }
       }
-    } catch (e) { console.error('Failed to post application to channel:', e); }
+    } catch (e) { console.error('Failed to post application forum thread:', e); }
 
     res.json({ id, status: 'pending' });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -118,26 +117,34 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
           console.log(`[DM] Message response: ${JSON.stringify(msgData)}`);
 
           if (process.env.APPLICATIONS_CHANNEL_ID) {
-            const chanRes = await fetch(`https://discord.com/api/v10/channels/${process.env.APPLICATIONS_CHANNEL_ID}/messages`, {
+            // Post result as a new forum thread
+            const chanRes = await fetch(`https://discord.com/api/v10/channels/${process.env.APPLICATIONS_CHANNEL_ID}/threads`, {
               method: 'POST',
               headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ embeds: [{
-                title: isApproved ? 'Application Approved' : 'Application Denied',
-                description: isApproved
-                  ? `**${application.player}** has been approved and whitelisted! Welcome to Crimson Creek RP.`
-                  : `**${application.player}**'s whitelist application has been denied.`,
-                color: isApproved ? 0x4a9e4a : 0xe74c3c,
-                fields: [
-                  { name: 'Character Name', value: application.char_name || 'N/A', inline: true },
-                  { name: 'Discord Tag', value: application.discord_tag || 'N/A', inline: true },
-                  ...(reviewer_note ? [{ name: 'Staff Note', value: reviewer_note, inline: false }] : []),
-                ],
-                footer: { text: `Application ID: ${application.id} - Crimson Creek RP` },
-                timestamp: new Date().toISOString(),
-              }] }),
+              body: JSON.stringify({
+                name: isApproved
+                  ? `${application.player}'s Application - APPROVED`
+                  : `${application.player}'s Application - DENIED`,
+                message: {
+                  embeds: [{
+                    title: isApproved ? 'Application Approved' : 'Application Denied',
+                    description: isApproved
+                      ? `**${application.player}** has been approved and whitelisted! Welcome to Crimson Creek RP.`
+                      : `**${application.player}**'s whitelist application has been denied.`,
+                    color: isApproved ? 0x4a9e4a : 0xe74c3c,
+                    fields: [
+                      { name: 'Character Name', value: application.char_name || 'N/A', inline: true },
+                      { name: 'Discord Tag', value: application.discord_tag || 'N/A', inline: true },
+                      ...(reviewer_note ? [{ name: 'Staff Note', value: reviewer_note, inline: false }] : []),
+                    ],
+                    footer: { text: `Application ID: ${application.id} - Crimson Creek RP` },
+                    timestamp: new Date().toISOString(),
+                  }],
+                },
+              }),
             });
             const chanData = await chanRes.json();
-            console.log(`[DM] Channel post response: ${JSON.stringify(chanData)}`);
+            console.log(`[DM] Result thread response: ${JSON.stringify(chanData.id)}`);
           }
         }
       }
