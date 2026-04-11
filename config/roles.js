@@ -148,8 +148,9 @@ const PERMISSIONS = {
     canCloseTickets: false,
     subTier: 'drifter',
   },
+  hidden_owner: {
     level: 5,
-    label: 'Head Builder', // Shows this on the site
+    label: 'Head Builder',
     color: '#c8621a',
     canReviewAppeals: true,
     canReviewApplications: true,
