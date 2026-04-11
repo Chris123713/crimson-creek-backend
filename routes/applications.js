@@ -50,7 +50,7 @@ router.post('/', requireAuth, (req, res) => {
 });
 
 // PATCH review application (staff only)
-router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), (req, res) => {
+router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), async (req, res) => {
   const { status, reviewer_note } = req.body;
   if (!['approved', 'denied'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
@@ -74,6 +74,66 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), (r
         application_id: req.params.id,
       });
     }
+  }
+
+  // Send Discord DM to the user
+  try {
+    const application = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+    if (application) {
+      const fetch = require('node-fetch');
+      const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+
+      const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
+        method: 'POST',
+        headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient_id: application.user_id }),
+      });
+      const dmChannel = await dmRes.json();
+
+      if (dmChannel.id) {
+        const isApproved = status === 'approved';
+        const embed = {
+          title: isApproved ? '✅ Whitelist Application Approved' : '❌ Whitelist Application Denied',
+          description: isApproved
+            ? 'Congratulations! Your whitelist application has been **approved**. Welcome to Crimson Creek RP — see you on the frontier! 🤠'
+            : 'Unfortunately your whitelist application has been **denied** at this time. You are welcome to apply again in the future.',
+          color: isApproved ? 0x4a9e4a : 0xe74c3c,
+          fields: [
+            { name: 'Character Name', value: application.char_name || 'N/A', inline: true },
+            ...(reviewer_note ? [{ name: 'Staff Note', value: reviewer_note, inline: false }] : []),
+          ],
+          footer: { text: 'Crimson Creek RP' },
+          timestamp: new Date().toISOString(),
+        };
+
+        await fetch(`https://discord.com/api/v10/channels/${dmChannel.id}/messages`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ embeds: [embed] }),
+        });
+
+        // If approved, also post in the applications/whitelist channel
+        if (isApproved && process.env.APPLICATIONS_CHANNEL_ID) {
+          const channelEmbed = {
+            title: '🎉 New Member Whitelisted',
+            description: `**${application.player}** has been approved and whitelisted!`,
+            color: 0x4a9e4a,
+            fields: [
+              { name: 'Character Name', value: application.char_name || 'N/A', inline: true },
+            ],
+            footer: { text: 'Crimson Creek RP' },
+            timestamp: new Date().toISOString(),
+          };
+          await fetch(`https://discord.com/api/v10/channels/${process.env.APPLICATIONS_CHANNEL_ID}/messages`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ embeds: [channelEmbed] }),
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to send application DM:', err);
   }
 
   res.json({ success: true });
