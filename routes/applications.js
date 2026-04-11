@@ -1,5 +1,6 @@
 const express = require('express');
 const { db } = require('../db/setup');
+const { logAction } = require('../db/log');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 
 const router = express.Router();
@@ -41,6 +42,10 @@ router.post('/', requireAuth, (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(user.id, user.username, discord_tag, parseInt(age), rp_experience, char_name, char_background, why_join);
 
+  logAction('application_submitted', user.id, result.lastInsertRowid, {
+    discord_tag, char_name,
+  });
+
   res.json({ id: result.lastInsertRowid, status: 'pending' });
 });
 
@@ -56,11 +61,18 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), (r
     WHERE id = ?
   `).run(status, req.session.user.id, reviewer_note || null, req.params.id);
 
+  logAction('application_reviewed', req.session.user.id, req.params.id, {
+    status, reviewer_note,
+  });
+
   // If approved, update user role to whitelist
   if (status === 'approved') {
     const app = db.prepare('SELECT user_id FROM applications WHERE id = ?').get(req.params.id);
     if (app) {
       db.prepare("UPDATE users SET role = 'whitelist' WHERE id = ?").run(app.user_id);
+      logAction('user_whitelisted', req.session.user.id, app.user_id, {
+        application_id: req.params.id,
+      });
     }
   }
 

@@ -1,5 +1,6 @@
 const express = require('express');
 const { db } = require('../db/setup');
+const { logAction } = require('../db/log');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 
 const router = express.Router();
@@ -38,6 +39,10 @@ router.post('/', requireAuth, (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(user.id, user.username, discord_tag, steam_id, ban_reason, story);
 
+  logAction('appeal_submitted', user.id, result.lastInsertRowid, {
+    discord_tag, steam_id, ban_reason,
+  });
+
   res.json({ id: result.lastInsertRowid, status: 'pending' });
 });
 
@@ -52,6 +57,10 @@ router.patch('/:id', requireAuth, requirePermission('canReviewAppeals'), (req, r
     UPDATE appeals SET status = ?, reviewer_id = ?, reviewer_note = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `).run(status, req.session.user.id, reviewer_note || null, req.params.id);
+
+  logAction('appeal_reviewed', req.session.user.id, req.params.id, {
+    status, reviewer_note,
+  });
 
   res.json({ success: true });
 });

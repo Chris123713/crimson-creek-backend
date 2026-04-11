@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const cors = require('cors');
+const path = require('path');
 
 const { setupDatabase } = require('./db/setup');
 const authRouter = require('./routes/auth');
@@ -15,6 +16,18 @@ const PORT = process.env.PORT || 3001;
 
 setupDatabase();
 
+// ─── SQLite session store (stores sessions in the same DB so /api/admin/sessions works) ──
+let sessionStore;
+try {
+  const BetterSqlite3Store = require('better-sqlite3-session-store')(session);
+  const Database = require('better-sqlite3');
+  const sessionDb = new Database(path.join(__dirname, 'crimson-creek.db'));
+  sessionStore = new BetterSqlite3Store({ client: sessionDb });
+} catch (e) {
+  console.warn('⚠️  better-sqlite3-session-store not available, sessions stored in memory');
+  sessionStore = undefined;
+}
+
 app.use(express.json());
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -27,6 +40,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'crimson-creek-secret-change-this',
   resave: false,
   saveUninitialized: false,
+  store: sessionStore,
   cookie: {
     secure: isProduction,
     httpOnly: true,

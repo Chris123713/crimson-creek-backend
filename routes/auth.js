@@ -1,6 +1,7 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const { db } = require('../db/setup');
+const { logAction } = require('../db/log');
 const { resolveRole, PERMISSIONS } = require('../config/roles');
 
 const router = express.Router();
@@ -107,6 +108,12 @@ router.get('/discord/callback', async (req, res) => {
       discordRoles: userRoleNames,
     };
 
+    // Log the login
+    logAction('user_login', discordUser.id, discordUser.username, {
+      role: siteRole,
+      discordRoles: userRoleNames,
+    });
+
     const FRONTEND = process.env.FRONTEND_URL || 'http://localhost:3000';
     const userData = encodeURIComponent(JSON.stringify({
       id: discordUser.id,
@@ -132,6 +139,9 @@ router.get('/me', (req, res) => {
 
 // ─── Logout ──────────────────────────────────────────────────────────────────
 router.post('/logout', (req, res) => {
+  if (req.session.user) {
+    logAction('user_logout', req.session.user.id, req.session.user.username);
+  }
   req.session.destroy();
   res.json({ success: true });
 });
