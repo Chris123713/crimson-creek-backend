@@ -36,6 +36,7 @@ app.use(session({
   },
 }));
 
+// ─── ROUTES ───────────────────────────────────────────────────────────────────
 app.use('/auth', authRouter);
 app.use('/api/appeals', appealsRouter);
 app.use('/api/applications', applicationsRouter);
@@ -43,6 +44,7 @@ app.use('/api/tickets', ticketRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/txadmin', txAdminRouter);
 
+// txAdmin incoming webhook (no auth — uses secret header instead)
 app.post('/webhook/txadmin', (req, res) => {
   const secret = req.headers['x-webhook-secret'] || req.headers['x-txadmin-secret'];
   if (secret !== process.env.TXADMIN_WEBHOOK_SECRET) {
@@ -52,8 +54,10 @@ app.post('/webhook/txadmin', (req, res) => {
   txAdminRouter(req, res);
 });
 
+// ─── HEALTH ───────────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
+// ─── txAdmin connection status ────────────────────────────────────────────────
 app.get('/api/txadmin/status', async (req, res) => {
   const fetch = require('node-fetch');
   try {

@@ -13,7 +13,6 @@ const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3001';
 const REDIRECT_URI = `${BASE_URL}/auth/discord/callback`;
 
-// ─── Step 1: Redirect user to Discord OAuth ──────────────────────────────────
 router.get('/discord', (req, res) => {
   const params = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
@@ -24,13 +23,11 @@ router.get('/discord', (req, res) => {
   res.redirect(`https://discord.com/api/oauth2/authorize?${params}`);
 });
 
-// ─── Step 2: Discord redirects back with a code ───────────────────────────────
 router.get('/discord/callback', async (req, res) => {
   const { code } = req.query;
   if (!code) return res.redirect('/?error=no_code');
 
   try {
-    // Exchange code for access token
     const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -45,20 +42,17 @@ router.get('/discord/callback', async (req, res) => {
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) throw new Error('No access token');
 
-    // Get Discord user info
     const userRes = await fetch('https://discord.com/api/users/@me', {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
     const discordUser = await userRes.json();
 
-    // Get the user's roles in YOUR Discord server using the bot token
     const memberRes = await fetch(
       `https://discord.com/api/guilds/${DISCORD_GUILD_ID}/members/${discordUser.id}`,
       { headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` } }
     );
     const memberData = await memberRes.json();
 
-    // Get role names from role IDs
     const guildRes = await fetch(
       `https://discord.com/api/guilds/${DISCORD_GUILD_ID}/roles`,
       { headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` } }
@@ -69,35 +63,28 @@ router.get('/discord/callback', async (req, res) => {
       .map(roleId => guildRoles.find(r => r.id === roleId)?.name)
       .filter(Boolean);
 
-    // Resolve highest site role — checks owner override first
     const siteRole = resolveRole(userRoleNames, discordUser.id);
     const perms = PERMISSIONS[siteRole];
 
-    // Upsert user in database
-    const stmt = db.prepare(`
-      INSERT INTO users (id, discord_id, username, discriminator, avatar, role, sub_tier, permissions, last_login)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(discord_id) DO UPDATE SET
-        username = excluded.username,
-        avatar = excluded.avatar,
-        role = excluded.role,
-        sub_tier = excluded.sub_tier,
-        permissions = excluded.permissions,
-        last_login = CURRENT_TIMESTAMP
-    `);
+    await db('users').insert({
+      id: discordUser.id,
+      discord_id: discordUser.id,
+      username: discordUser.username,
+      discriminator: discordUser.discriminator || '0',
+      avatar: discordUser.avatar,
+      role: siteRole,
+      sub_tier: perms.subTier,
+      permissions: JSON.stringify(perms),
+      last_login: new Date().toISOString(),
+    }).onConflict('discord_id').merge({
+      username: discordUser.username,
+      avatar: discordUser.avatar,
+      role: siteRole,
+      sub_tier: perms.subTier,
+      permissions: JSON.stringify(perms),
+      last_login: new Date().toISOString(),
+    });
 
-    stmt.run(
-      discordUser.id,
-      discordUser.id,
-      discordUser.username,
-      discordUser.discriminator || '0',
-      discordUser.avatar,
-      siteRole,
-      perms.subTier,
-      JSON.stringify(perms)
-    );
-
-    // Set session
     req.session.user = {
       id: discordUser.id,
       username: discordUser.username,
@@ -108,11 +95,7 @@ router.get('/discord/callback', async (req, res) => {
       discordRoles: userRoleNames,
     };
 
-    // Log the login
-    logAction('user_login', discordUser.id, discordUser.username, {
-      role: siteRole,
-      discordRoles: userRoleNames,
-    });
+    await logAction('user_login', discordUser.id, discordUser.username, { role: siteRole });
 
     const FRONTEND = process.env.FRONTEND_URL || 'http://localhost:3000';
     const userData = encodeURIComponent(JSON.stringify({
@@ -131,16 +114,14 @@ router.get('/discord/callback', async (req, res) => {
   }
 });
 
-// ─── Get current session user ────────────────────────────────────────────────
 router.get('/me', (req, res) => {
   if (!req.session.user) return res.json({ user: null });
   res.json({ user: req.session.user });
 });
 
-// ─── Logout ──────────────────────────────────────────────────────────────────
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
   if (req.session.user) {
-    logAction('user_logout', req.session.user.id, req.session.user.username);
+    await logAction('user_logout', req.session.user.id, req.session.user.username);
   }
   req.session.destroy();
   res.json({ success: true });

@@ -1,93 +1,79 @@
 const path = require('path');
-const Database = require('better-sqlite3');
+const knex = require('knex')({
+  client: 'sqlite3',
+  connection: { filename: path.join(__dirname, '..', 'crimson-creek.db') },
+  useNullAsDefault: true,
+});
 
-const dbPath = path.join(__dirname, '..', 'crimson-creek.db');
-const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
-
-function setupDatabase() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      discord_id TEXT UNIQUE NOT NULL,
-      username TEXT NOT NULL,
-      discriminator TEXT,
-      avatar TEXT,
-      role TEXT DEFAULT 'member',
-      sub_tier TEXT DEFAULT 'member',
-      permissions TEXT DEFAULT '{}',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      last_login DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS appeals (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT NOT NULL,
-      player TEXT NOT NULL,
-      discord_tag TEXT NOT NULL,
-      steam_id TEXT NOT NULL,
-      ban_reason TEXT NOT NULL,
-      story TEXT NOT NULL,
-      status TEXT DEFAULT 'pending',
-      reviewer_id TEXT,
-      reviewer_note TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT NOT NULL,
-      player TEXT NOT NULL,
-      discord_tag TEXT NOT NULL,
-      age INTEGER NOT NULL,
-      rp_experience TEXT NOT NULL,
-      char_name TEXT NOT NULL,
-      char_background TEXT NOT NULL,
-      why_join TEXT NOT NULL,
-      status TEXT DEFAULT 'pending',
-      reviewer_id TEXT,
-      reviewer_note TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS tickets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT NOT NULL,
-      subject TEXT NOT NULL,
-      category TEXT NOT NULL,
-      body TEXT NOT NULL,
-      status TEXT DEFAULT 'open',
-      staff_reply TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS bans (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      player TEXT NOT NULL,
-      discord TEXT,
-      steam TEXT,
-      license TEXT,
-      reason TEXT NOT NULL,
-      banned_by TEXT NOT NULL,
-      permanent INTEGER DEFAULT 1,
-      source TEXT DEFAULT 'site',
-      active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS action_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      action TEXT NOT NULL,
-      performed_by TEXT NOT NULL,
-      target TEXT,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS sessions (
-      sid TEXT PRIMARY KEY,
-      sess TEXT NOT NULL,
-      expired DATETIME NOT NULL
-    );
-  `);
+async function setupDatabase() {
+  await knex.schema.createTableIfNotExists('users', t => {
+    t.string('id').primary();
+    t.string('discord_id').unique().notNullable();
+    t.string('username').notNullable();
+    t.string('discriminator');
+    t.string('avatar');
+    t.string('role').defaultTo('member');
+    t.string('sub_tier').defaultTo('member');
+    t.text('permissions').defaultTo('{}');
+    t.datetime('created_at').defaultTo(knex.fn.now());
+    t.datetime('last_login').defaultTo(knex.fn.now());
+  });
+  await knex.schema.createTableIfNotExists('appeals', t => {
+    t.increments('id').primary();
+    t.string('user_id').notNullable();
+    t.string('player').notNullable();
+    t.string('discord_tag').notNullable();
+    t.string('steam_id').notNullable();
+    t.text('ban_reason').notNullable();
+    t.text('story').notNullable();
+    t.string('status').defaultTo('pending');
+    t.string('reviewer_id');
+    t.text('reviewer_note');
+    t.datetime('created_at').defaultTo(knex.fn.now());
+    t.datetime('updated_at').defaultTo(knex.fn.now());
+  });
+  await knex.schema.createTableIfNotExists('applications', t => {
+    t.increments('id').primary();
+    t.string('user_id').notNullable();
+    t.string('player').notNullable();
+    t.string('discord_tag').notNullable();
+    t.integer('age').notNullable();
+    t.text('rp_experience').notNullable();
+    t.string('char_name').notNullable();
+    t.text('char_background').notNullable();
+    t.text('why_join').notNullable();
+    t.string('status').defaultTo('pending');
+    t.string('reviewer_id');
+    t.text('reviewer_note');
+    t.datetime('created_at').defaultTo(knex.fn.now());
+    t.datetime('updated_at').defaultTo(knex.fn.now());
+  });
+  await knex.schema.createTableIfNotExists('tickets', t => {
+    t.increments('id').primary();
+    t.string('user_id').notNullable();
+    t.string('subject').notNullable();
+    t.string('category').notNullable();
+    t.text('body').notNullable();
+    t.string('status').defaultTo('open');
+    t.text('staff_reply');
+    t.datetime('created_at').defaultTo(knex.fn.now());
+    t.datetime('updated_at').defaultTo(knex.fn.now());
+  });
+  await knex.schema.createTableIfNotExists('action_log', t => {
+    t.increments('id').primary();
+    t.string('action').notNullable();
+    t.string('performed_by').notNullable();
+    t.string('target');
+    t.text('details');
+    t.datetime('created_at').defaultTo(knex.fn.now());
+  });
+  await knex.schema.createTableIfNotExists('sessions', t => {
+    t.string('sid').primary();
+    t.text('sess').notNullable();
+    t.datetime('expired').notNullable();
+  });
+  await knex.schema.createTableIfNotExists('users', t => {}).catch(() => {});
   console.log('✅ Database tables ready');
 }
 
-module.exports = { db, setupDatabase };
+module.exports = { db: knex, setupDatabase };
