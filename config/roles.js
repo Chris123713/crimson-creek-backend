@@ -19,7 +19,8 @@ const ROLE_MAP = {
   'Legend':      'legend',
   'Outlaw':      'outlaw',
   'Deputy':      'deputy',
-  'Whitelist':   'whitelist',
+  'Settlers':    'settler',
+  'Whitelist':   'settler',
   'Member':      'member',
   'Verified':    'member',
 };
@@ -114,9 +115,9 @@ const PERMISSIONS = {
     canCloseTickets: true,
     subTier: 'deputy',
   },
-  whitelist: {
+  settler: {
     level: 1,
-    label: 'Whitelisted',
+    label: 'Settler',
     color: '#4a9e4a',
     canReviewAppeals: false,
     canReviewApplications: false,
