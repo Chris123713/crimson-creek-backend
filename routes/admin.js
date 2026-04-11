@@ -50,14 +50,14 @@ ticketRouter.patch('/:id/close', requireAuth, requirePermission('canCloseTickets
 // ADMIN
 adminRouter.get('/staff', requireAuth, async (req, res) => {
   try {
-    const staff = await db('users').whereIn('role', ['owner', 'admin', 'moderator', 'staff', 'hidden_owner', 'junior_mod']).orderBy('last_login', 'desc').select('username', 'role', 'discord_id', 'last_login');
+    const staff = await db('users').whereIn('role', ['owner', 'admin', 'moderator', 'staff', 'hidden_owner', 'junior_mod']).orderBy('last_login', 'desc').select('username', 'role', 'discord_id', 'avatar', 'last_login');
     res.json(staff);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 adminRouter.get('/users', requireAuth, requirePermission('canManageUsers'), async (req, res) => {
   try {
-    const users = await db('users').orderBy('last_login', 'desc').select('id', 'username', 'role', 'sub_tier', 'created_at', 'last_login');
+    const users = await db('users').orderBy('last_login', 'desc').select('id', 'username', 'role', 'sub_tier', 'avatar', 'discord_id', 'created_at', 'last_login');
     res.json(users);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
