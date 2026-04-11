@@ -53,10 +53,11 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
         await logAction('user_whitelisted', req.session.user.id, app.user_id, { application_id: req.params.id });
         try {
           const fetch = require('node-fetch');
-          await fetch(`https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/${app.user_id}/roles/1048526804996067409`, {
+          const roleRes = await fetch(`https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/${app.user_id}/roles/1048526804996067409`, {
             method: 'PUT',
             headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json' },
           });
+          console.log(`[ROLE] Settlers role assign status: ${roleRes.status}`);
         } catch (e) { console.error('Failed to assign Settlers role:', e); }
       }
     }
@@ -67,30 +68,39 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
       if (application) {
         const fetch = require('node-fetch');
         const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+        console.log(`[DM] Sending to user_id: ${application.user_id}`);
+        console.log(`[DM] Token prefix: ${BOT_TOKEN ? BOT_TOKEN.substring(0, 15) : 'MISSING'}`);
+
         const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
           method: 'POST',
           headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ recipient_id: application.user_id }),
         });
         const dmChannel = await dmRes.json();
+        console.log(`[DM] Channel response: ${JSON.stringify(dmChannel)}`);
+
         if (dmChannel.id) {
           const isApproved = status === 'approved';
-          await fetch(`https://discord.com/api/v10/channels/${dmChannel.id}/messages`, {
+          const msgRes = await fetch(`https://discord.com/api/v10/channels/${dmChannel.id}/messages`, {
             method: 'POST',
             headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ embeds: [{ title: isApproved ? '✅ Whitelist Application Approved' : '❌ Whitelist Application Denied', description: isApproved ? 'Congratulations! Your whitelist application has been **approved**. Welcome to Crimson Creek RP! 🤠' : 'Your whitelist application has been **denied**. You are welcome to apply again in the future.', color: isApproved ? 0x4a9e4a : 0xe74c3c, fields: [{ name: 'Character Name', value: application.char_name || 'N/A', inline: true }, ...(reviewer_note ? [{ name: 'Staff Note', value: reviewer_note, inline: false }] : [])], footer: { text: 'Crimson Creek RP' }, timestamp: new Date().toISOString() }] }),
           });
+          const msgData = await msgRes.json();
+          console.log(`[DM] Message response: ${JSON.stringify(msgData)}`);
 
           if (isApproved && process.env.APPLICATIONS_CHANNEL_ID) {
-            await fetch(`https://discord.com/api/v10/channels/${process.env.APPLICATIONS_CHANNEL_ID}/messages`, {
+            const chanRes = await fetch(`https://discord.com/api/v10/channels/${process.env.APPLICATIONS_CHANNEL_ID}/messages`, {
               method: 'POST',
               headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({ embeds: [{ title: '🎉 New Member Whitelisted', description: `**${application.player}** has been approved and whitelisted!`, color: 0x4a9e4a, fields: [{ name: 'Character Name', value: application.char_name || 'N/A', inline: true }], footer: { text: 'Crimson Creek RP' }, timestamp: new Date().toISOString() }] }),
             });
+            const chanData = await chanRes.json();
+            console.log(`[DM] Channel post response: ${JSON.stringify(chanData)}`);
           }
         }
       }
-    } catch (dmErr) { console.error('Failed to send application DM:', dmErr); }
+    } catch (dmErr) { console.error('[DM] Error:', dmErr); }
 
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
