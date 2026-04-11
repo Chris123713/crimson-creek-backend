@@ -64,7 +64,7 @@ router.post('/', requireAuth, async (req, res) => {
       user_id: user.id,
       player: user.username,
       discord_tag,
-      age: null,
+      age: 0,
       char_name: null,
       char_background: null,
       why_join: null,
