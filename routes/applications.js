@@ -37,8 +37,8 @@ router.post('/', requireAuth, async (req, res) => {
       secret_code,
     } = req.body;
 
-    // Always use the authenticated user's Discord ID — never trust the form
-    const discord_tag = user.id;
+    // Always use the authenticated user's Discord info — never trust the form
+    const discord_tag = user.username;  // username shown in application & Discord thread
 
     // Required field check
     const required = { discord_tag, age_confirm, has_microphone, rp_experience, been_banned, looking_forward, what_is_failrp, what_is_powergaming, robbery_cooldown, wrongful_accusation, secret_code };
