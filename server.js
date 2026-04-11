@@ -16,6 +16,7 @@ const PORT = process.env.PORT || 3001;
 setupDatabase();
 
 app.use(express.json());
+app.set('trust proxy', 1);
 const isProduction = process.env.NODE_ENV === 'production';
 
 app.use(cors({
@@ -28,9 +29,9 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: isProduction,
+    secure: true,
     httpOnly: true,
-    sameSite: isProduction ? 'none' : 'lax',
+    sameSite: 'none',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 }));
