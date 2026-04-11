@@ -91,6 +91,43 @@ router.post('/', requireAuth, async (req, res) => {
 
         const truncate = (str, n) => str && str.length > n ? str.substring(0, n) + '...' : (str || 'N/A');
 
+        const description = [
+          `**Do you confirm you're over the age of 18?**`,
+          `\u2022 ${truncate(age_confirm, 300)}`,
+          ``,
+          `**Provide Discord ID:**`,
+          `\u2022 ${discord_tag}`,
+          ``,
+          `**Do you have a working and quality microphone?**`,
+          `\u2022 ${truncate(has_microphone, 500)}`,
+          ``,
+          `**Do you have previous roleplay experience? If so, please list them.**`,
+          `\u2022 ${truncate(rp_experience, 600)}`,
+          ``,
+          `**Provide clips of past RP** *(prefer twitch, youtube, or medal)*`,
+          `\u2022 ${truncate(rp_clips, 400)}`,
+          ``,
+          `**Have you ever been banned from a RedM or FiveM Server? If so which ones and why?**`,
+          `\u2022 ${truncate(been_banned, 300)}`,
+          ``,
+          `**What are you looking forward to doing the most on Crimson Creek and why?** *(Minimum 100 words)*`,
+          `\u2022 ${truncate(looking_forward, 800)}`,
+          ``,
+          `**In your own words, what is FailRP? Please also give an example.** *(Minimum 100 words)*`,
+          `\u2022 ${truncate(what_is_failrp, 800)}`,
+          ``,
+          `**What is powergaming? Give an example.**`,
+          `\u2022 ${truncate(what_is_powergaming, 400)}`,
+          ``,
+          `**What is the cooldown time for personal robberies between the same groups or individuals?**`,
+          `\u2022 ${robbery_cooldown}`,
+          ``,
+          `**Your character is wrongly accused of a crime, how do you roleplay that scene to keep it immersive?**`,
+          `\u2022 ${truncate(wrongful_accusation, 600)}`,
+          ``,
+          `*By submitting this application, you acknowledge that Crimson Creek is a serious story driven roleplay community.*`,
+        ].join('\n');
+
         const threadRes = await fetch(`https://discord.com/api/v10/channels/${CHANNEL_ID}/threads`, {
           method: 'POST',
           headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
@@ -99,21 +136,8 @@ router.post('/', requireAuth, async (req, res) => {
             message: {
               embeds: [{
                 title: 'Whitelisted App',
+                description,
                 color: 0x000000,
-                fields: [
-                  { name: 'Discord ID',                                                     value: truncate(discord_tag, 200),        inline: true  },
-                  { name: 'Age Confirmation',                                               value: truncate(age_confirm, 300),        inline: true  },
-                  { name: 'Microphone',                                                     value: truncate(has_microphone, 500),     inline: false },
-                  { name: 'RP Experience',                                                  value: truncate(rp_experience, 1024),     inline: false },
-                  { name: 'RP Clips',                                                       value: truncate(rp_clips, 500),           inline: false },
-                  { name: 'Previously Banned',                                              value: truncate(been_banned, 500),        inline: false },
-                  { name: 'What are you looking forward to? (100+ words)',                  value: truncate(looking_forward, 1024),   inline: false },
-                  { name: 'What is FailRP? (100+ words)',                                   value: truncate(what_is_failrp, 1024),    inline: false },
-                  { name: 'What is powergaming?',                                           value: truncate(what_is_powergaming, 800),inline: false },
-                  { name: 'Robbery cooldown',                                               value: truncate(robbery_cooldown, 200),   inline: true  },
-                  { name: 'Wrongful accusation scene',                                      value: truncate(wrongful_accusation, 800),inline: false },
-                ],
-                footer: { text: 'By submitting this application, you acknowledge that Crimson Creek is a serious story driven roleplay community.' },
                 timestamp: new Date().toISOString(),
               }],
             },
@@ -121,12 +145,11 @@ router.post('/', requireAuth, async (req, res) => {
         });
         const threadData = await threadRes.json();
         console.log(`[APP] Discord response status: ${threadRes.status}`);
-        console.log(`[APP] Discord response body: ${JSON.stringify(threadData)}`);
         if (threadData.id) {
           await db('applications').where('id', id).update({ thread_id: threadData.id });
           console.log(`[APP] Thread ID saved: ${threadData.id}`);
         } else {
-          console.error('[APP] Thread creation failed — see response above');
+          console.error('[APP] Thread creation failed:', JSON.stringify(threadData));
         }
       }
     } catch (e) { console.error('Failed to post application forum thread:', e); }
