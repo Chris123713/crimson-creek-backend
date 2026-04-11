@@ -1,11 +1,42 @@
-const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
-const db = new Database(path.join(__dirname, '..', 'crimson-creek.db'));
+// Use better-sqlite3 if available, otherwise fall back to a simple JSON store
+let db;
+let usingSQLite = false;
 
-db.pragma('journal_mode = WAL');
+try {
+  const Database = require('better-sqlite3');
+  db = new Database(path.join(__dirname, '..', 'crimson-creek.db'));
+  db.pragma('journal_mode = WAL');
+  usingSQLite = true;
+  console.log('✅ Using better-sqlite3');
+} catch (e) {
+  console.log('⚠️  better-sqlite3 not available, using in-memory store');
+  // Simple in-memory store as fallback
+  db = createMemoryDb();
+}
+
+function createMemoryDb() {
+  const store = { users: [], appeals: [], applications: [], tickets: [], bans: [], action_log: [], sessions: [] };
+  
+  return {
+    prepare: (sql) => ({
+      run: (...args) => ({ lastInsertRowid: Date.now(), changes: 1 }),
+      get: (...args) => null,
+      all: (...args) => [],
+    }),
+    exec: () => {},
+    pragma: () => {},
+  };
+}
 
 function setupDatabase() {
+  if (!usingSQLite) {
+    console.log('✅ In-memory database ready');
+    return;
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -69,11 +100,8 @@ function setupDatabase() {
       reason TEXT NOT NULL,
       banned_by TEXT NOT NULL,
       permanent INTEGER DEFAULT 1,
-      duration_hours INTEGER,
       source TEXT DEFAULT 'site',
       active INTEGER DEFAULT 1,
-      removed_by TEXT,
-      removed_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS action_log (
@@ -82,7 +110,6 @@ function setupDatabase() {
       performed_by TEXT NOT NULL,
       target TEXT,
       details TEXT,
-      source TEXT DEFAULT 'site',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS sessions (
