@@ -8,6 +8,7 @@ const ROLE_MAP = {
   // Discord role name → site role
   // Add your actual Discord role names here
   'Owner':       'owner',
+  'Owner Team':  'owner',
   'Co-Owner':    'owner',
   'Admin':       'admin',
   'Administrator': 'admin',
