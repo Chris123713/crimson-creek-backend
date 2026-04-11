@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python3", "gcc", "gnumake", "sqlite", "libc6-dev"]
+nixPkgs = ["nodejs_20", "python3", "gcc", "gnumake", "sqlite"]
 
 [phases.install]
-cmds = ["rm -rf node_modules", "npm install"]
+cmds = ["npm install"]
 
 [start]
 cmd = "node server.js"
