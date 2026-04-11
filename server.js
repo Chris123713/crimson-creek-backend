@@ -4,6 +4,7 @@ const session = require('express-session');
 const cors = require('cors');
 
 const { setupDatabase } = require('./db/setup');
+const connectPgSimple = require('connect-pg-simple');
 const authRouter = require('./routes/auth');
 const appealsRouter = require('./routes/appeals');
 const applicationsRouter = require('./routes/applications');
@@ -28,7 +29,7 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(session({
+const sessionConfig = {
   secret: process.env.SESSION_SECRET || 'crimson-creek-secret-change-this',
   resave: false,
   saveUninitialized: false,
@@ -38,7 +39,19 @@ app.use(session({
     sameSite: 'none',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
-}));
+};
+
+if (process.env.DATABASE_URL) {
+  const PgSession = connectPgSimple(session);
+  sessionConfig.store = new PgSession({
+    conString: process.env.DATABASE_URL,
+    tableName: 'sessions',
+    createTableIfMissing: true,
+    ssl: { rejectUnauthorized: false },
+  });
+}
+
+app.use(session(sessionConfig));
 
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
 app.use('/auth', authRouter);

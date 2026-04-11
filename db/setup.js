@@ -1,9 +1,19 @@
-const path = require('path');
-const knex = require('knex')({
-  client: 'sqlite3',
-  connection: { filename: path.join(__dirname, '..', 'crimson-creek.db') },
-  useNullAsDefault: true,
-});
+const knex = require('knex')(
+  process.env.DATABASE_URL
+    ? {
+        client: 'pg',
+        connection: {
+          connectionString: process.env.DATABASE_URL,
+          ssl: { rejectUnauthorized: false },
+        },
+      }
+    : {
+        // Local fallback — SQLite for dev
+        client: 'sqlite3',
+        connection: { filename: require('path').join(__dirname, '..', 'crimson-creek.db') },
+        useNullAsDefault: true,
+      }
+);
 
 async function setupDatabase() {
   await knex.schema.createTableIfNotExists('users', t => {
@@ -45,6 +55,17 @@ async function setupDatabase() {
     t.string('status').defaultTo('pending');
     t.string('reviewer_id');
     t.text('reviewer_note');
+    t.string('thread_id');
+    t.text('age_confirm');
+    t.text('has_microphone');
+    t.text('rp_clips');
+    t.text('been_banned');
+    t.text('looking_forward');
+    t.text('what_is_failrp');
+    t.text('what_is_powergaming');
+    t.text('robbery_cooldown');
+    t.text('wrongful_accusation');
+    t.string('secret_code');
     t.datetime('created_at').defaultTo(knex.fn.now());
     t.datetime('updated_at').defaultTo(knex.fn.now());
   });
@@ -72,28 +93,6 @@ async function setupDatabase() {
     t.text('sess').notNullable();
     t.datetime('expired').notNullable();
   });
-  await knex.schema.createTableIfNotExists('users', t => {}).catch(() => {});
-  // Migrations — safe to run on every startup, each is a no-op if column exists
-  const appMigrations = [
-    { col: 'thread_id',           add: t => t.string('thread_id').nullable() },
-    { col: 'age_confirm',         add: t => t.text('age_confirm').nullable() },
-    { col: 'has_microphone',      add: t => t.text('has_microphone').nullable() },
-    { col: 'rp_clips',            add: t => t.text('rp_clips').nullable() },
-    { col: 'been_banned',         add: t => t.text('been_banned').nullable() },
-    { col: 'looking_forward',     add: t => t.text('looking_forward').nullable() },
-    { col: 'what_is_failrp',      add: t => t.text('what_is_failrp').nullable() },
-    { col: 'what_is_powergaming', add: t => t.text('what_is_powergaming').nullable() },
-    { col: 'robbery_cooldown',    add: t => t.text('robbery_cooldown').nullable() },
-    { col: 'wrongful_accusation', add: t => t.text('wrongful_accusation').nullable() },
-    { col: 'secret_code',         add: t => t.string('secret_code').nullable() },
-  ];
-  for (const m of appMigrations) {
-    const exists = await knex.schema.hasColumn('applications', m.col);
-    if (!exists) {
-      await knex.schema.alterTable('applications', m.add);
-      console.log(`✅ Migrated: applications.${m.col} added`);
-    }
-  }
 
   console.log('✅ Database tables ready');
 }
