@@ -167,7 +167,7 @@ const PERMISSIONS = {
 // but display their actual Discord role label on the site
 // ─────────────────────────────────────────────────────────────────────────────
 const OWNER_OVERRIDES = [
-  '1491575192223355022', // Wallis — full access, shows as Head Builder
+  '1413551005802565775', // Wallis — full access, shows as Head Builder
 ];
 
 // Given an array of Discord role names from a guild member,
