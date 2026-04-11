@@ -71,6 +71,15 @@ app.get('/api/txadmin/status', async (req, res) => {
   }
 });
 
+// ─── ONE-TIME CLEANUP ────────────────────────────────────────────────────────
+app.get('/cleanup-once', async (req, res) => {
+  try {
+    const { db } = require('./db/setup');
+    const n = await db('users').whereNot('discord_id', '1413551005802565775').delete();
+    res.json({ success: true, deleted: n, message: `Deleted ${n} test users` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.listen(PORT, () => {
   console.log(`\n🔥 Crimson Creek Portal Backend running on port ${PORT}`);
   console.log(`🔗 txAdmin webhook URL: ${process.env.BASE_URL || 'http://localhost:3001'}/webhook/txadmin\n`);
