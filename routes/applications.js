@@ -65,7 +65,7 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
     status, reviewer_note,
   });
 
-  // If approved, update user role to whitelist and assign Settlers role in Discord
+  // If approved, update user role and assign Settlers role in Discord
   if (status === 'approved') {
     const app = db.prepare('SELECT user_id FROM applications WHERE id = ?').get(req.params.id);
     if (app) {
@@ -74,7 +74,6 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
         application_id: req.params.id,
       });
 
-      // Assign Settlers role in Discord
       try {
         const fetch = require('node-fetch');
         const SETTLERS_ROLE_ID = '1048526804996067409';
@@ -124,7 +123,6 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
           body: JSON.stringify({ embeds: [embed] }),
         });
 
-        // If approved, also post in the applications/whitelist channel
         if (isApproved && process.env.APPLICATIONS_CHANNEL_ID) {
           const channelEmbed = {
             title: '🎉 New Member Whitelisted',

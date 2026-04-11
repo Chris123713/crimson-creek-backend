@@ -26,7 +26,6 @@ router.post('/', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'All fields required' });
   }
 
-  // Check for existing pending appeal
   const existing = db.prepare(
     'SELECT id FROM appeals WHERE user_id = ? AND status = ?'
   ).get(user.id, 'pending');
@@ -69,7 +68,6 @@ router.patch('/:id', requireAuth, requirePermission('canReviewAppeals'), async (
       const fetch = require('node-fetch');
       const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 
-      // Open a DM channel with the user
       const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
         method: 'POST',
         headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
