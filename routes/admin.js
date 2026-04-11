@@ -121,4 +121,36 @@ adminRouter.get('/activity', requireAuth, requirePermission('canViewStaffPanel')
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// Assign Settlers Discord role when approving an application
+adminRouter.post('/assign-settler-role', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
+  try {
+    const { application_id, role_id } = req.body;
+    if (!application_id || !role_id) return res.status(400).json({ error: 'application_id and role_id required' });
+
+    const app = await db('applications').where('id', application_id).first();
+    if (!app) return res.status(404).json({ error: 'Application not found' });
+
+    const discord_id = app.user_id;
+
+    const fetch = require('node-fetch');
+    const roleRes = await fetch(
+      `https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/${discord_id}/roles/${role_id}`,
+      { method: 'PUT', headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json' } }
+    );
+
+    if (!roleRes.ok && roleRes.status !== 204) {
+      const errText = await roleRes.text();
+      return res.status(500).json({ error: 'Discord API failed', detail: errText });
+    }
+
+    await db('users').where('discord_id', discord_id).update({ role: 'settler' });
+    await logAction('settler_role_assigned', req.session.user.id, discord_id, { application_id });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = { ticketRouter, adminRouter };

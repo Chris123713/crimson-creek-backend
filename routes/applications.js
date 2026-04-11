@@ -183,7 +183,7 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
 
     // Assign Settlers role if approved
     if (status === 'approved') {
-      await db('users').where('id', application.user_id).update({ role: 'whitelist' });
+      await db('users').where('id', application.user_id).update({ role: 'settler' });
       await logAction('user_whitelisted', req.session.user.id, application.user_id, { application_id: req.params.id });
       try {
         const fetch = require('node-fetch');
