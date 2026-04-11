@@ -65,7 +65,7 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
     status, reviewer_note,
   });
 
-  // If approved, update user role to whitelist
+  // If approved, update user role to whitelist and assign Settlers role in Discord
   if (status === 'approved') {
     const app = db.prepare('SELECT user_id FROM applications WHERE id = ?').get(req.params.id);
     if (app) {
@@ -73,6 +73,18 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
       logAction('user_whitelisted', req.session.user.id, app.user_id, {
         application_id: req.params.id,
       });
+
+      // Assign Settlers role in Discord
+      try {
+        const fetch = require('node-fetch');
+        const SETTLERS_ROLE_ID = '1048526804996067409';
+        await fetch(`https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/${app.user_id}/roles/${SETTLERS_ROLE_ID}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json' },
+        });
+      } catch (err) {
+        console.error('Failed to assign Settlers role:', err);
+      }
     }
   }
 
