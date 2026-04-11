@@ -1,17 +1,13 @@
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 const path = require('path');
 
-const db = new sqlite3.Database(path.join(__dirname, '..', 'crimson-creek.db'), (err) => {
-  if (err) console.error('Database connection error:', err);
-  else console.log('✅ Database connected');
-});
+const db = new Database(path.join(__dirname, '..', 'crimson-creek.db'));
 
-db.run('PRAGMA journal_mode=WAL');
+db.pragma('journal_mode = WAL');
 
 function setupDatabase() {
-  db.serialize(() => {
-
-    db.run(`CREATE TABLE IF NOT EXISTS users (
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       discord_id TEXT UNIQUE NOT NULL,
       username TEXT NOT NULL,
@@ -22,9 +18,8 @@ function setupDatabase() {
       permissions TEXT DEFAULT '{}',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       last_login DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS appeals (
+    );
+    CREATE TABLE IF NOT EXISTS appeals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
       player TEXT NOT NULL,
@@ -37,9 +32,8 @@ function setupDatabase() {
       reviewer_note TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS applications (
+    );
+    CREATE TABLE IF NOT EXISTS applications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
       player TEXT NOT NULL,
@@ -54,9 +48,8 @@ function setupDatabase() {
       reviewer_note TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS tickets (
+    );
+    CREATE TABLE IF NOT EXISTS tickets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
       subject TEXT NOT NULL,
@@ -66,10 +59,8 @@ function setupDatabase() {
       messages TEXT DEFAULT '[]',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    // Enhanced bans table — tracks source (site vs txAdmin) and full identifiers
-    db.run(`CREATE TABLE IF NOT EXISTS bans (
+    );
+    CREATE TABLE IF NOT EXISTS bans (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       player TEXT NOT NULL,
       discord TEXT,
@@ -84,10 +75,8 @@ function setupDatabase() {
       removed_by TEXT,
       removed_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    // Action log — tracks all staff actions from both site and txAdmin
-    db.run(`CREATE TABLE IF NOT EXISTS action_log (
+    );
+    CREATE TABLE IF NOT EXISTS action_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       action TEXT NOT NULL,
       performed_by TEXT NOT NULL,
@@ -95,26 +84,14 @@ function setupDatabase() {
       details TEXT,
       source TEXT DEFAULT 'site',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS sessions (
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
       sid TEXT PRIMARY KEY,
       sess TEXT NOT NULL,
       expired DATETIME NOT NULL
-    )`);
-
-    console.log('✅ Database tables ready');
-  });
+    );
+  `);
+  console.log('✅ Database tables ready');
 }
-
-db.getRow = (sql, params = []) => new Promise((resolve, reject) => {
-  db.get(sql, params, (err, row) => err ? reject(err) : resolve(row));
-});
-db.getAll = (sql, params = []) => new Promise((resolve, reject) => {
-  db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows));
-});
-db.run_ = (sql, params = []) => new Promise((resolve, reject) => {
-  db.run(sql, params, function(err) { err ? reject(err) : resolve({ lastID: this.lastID, changes: this.changes }); });
-});
 
 module.exports = { db, setupDatabase };
