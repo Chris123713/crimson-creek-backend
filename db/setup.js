@@ -1,7 +1,5 @@
 const path = require('path');
-const fs = require('fs');
 
-// Use better-sqlite3 if available, otherwise fall back to a simple JSON store
 let db;
 let usingSQLite = false;
 
@@ -13,21 +11,37 @@ try {
   console.log('✅ Using better-sqlite3');
 } catch (e) {
   console.log('⚠️  better-sqlite3 not available, using in-memory store');
-  // Simple in-memory store as fallback
   db = createMemoryDb();
 }
 
 function createMemoryDb() {
-  const store = { users: [], appeals: [], applications: [], tickets: [], bans: [], action_log: [], sessions: [] };
-  
+  const store = {
+    users: [], appeals: [], applications: [],
+    tickets: [], bans: [], action_log: [], sessions: []
+  };
+  let autoId = 1;
+
   return {
-    prepare: (sql) => ({
-      run: (...args) => ({ lastInsertRowid: Date.now(), changes: 1 }),
-      get: (...args) => null,
-      all: (...args) => [],
-    }),
-    exec: () => {},
     pragma: () => {},
+    exec: () => {},
+    prepare: (sql) => {
+      const table = (sql.match(/(?:FROM|INTO|UPDATE)\s+(\w+)/i) || [])[1];
+      return {
+        run: (...args) => {
+          const id = autoId++;
+          if (table && store[table]) store[table].push({ id, ...Object.fromEntries(args.map((v,i)=>([`col${i}`,v]))) });
+          return { lastInsertRowid: id, changes: 1 };
+        },
+        get: (...args) => {
+          if (table && store[table]) return store[table][0] || null;
+          return null;
+        },
+        all: (...args) => {
+          if (table && store[table]) return store[table];
+          return [];
+        },
+      };
+    },
   };
 }
 
