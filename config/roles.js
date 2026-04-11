@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ROLE_MAP = {
+<<<<<<< Updated upstream
   // Discord role name → site role
   // Add your actual Discord role names here
   'Owner':       'owner',
@@ -24,118 +25,192 @@ const ROLE_MAP = {
   'Whitelist':   'settler',
   'Member':      'member',
   'Verified':    'member',
+=======
+  // ── Tier 5 — Full access ──────────────────────────────────────────────────
+  'Owner Team':        'owner',
+  'Owner':             'owner',
+  'Co-Owner':          'owner',
+  'Sr. Managment':     'owner',   // Sr. Management = all perms
+
+  // ── Tier 4 — Management (tickets, appeals, apps, announcements, activity) ─
+  'Managment':         'management',
+  'Head Gov. Official':'management',
+  'Head Builder':      'management',
+
+  // ── Tier 3 — Community Manager (tickets, appeals, announcements) ──────────
+  'Community Manager': 'community_manager',
+
+  // ── Tier 2 — Moderation (tickets + appeals only) ─────────────────────────
+  'Senior Government': 'moderator',
+  'Government':        'moderator',
+  'Moderation':        'moderator',
+  'Senior Mod':        'moderator',
+  'Moderator':         'moderator',
+  'Mod':               'moderator',
+
+  // ── In-game / community roles ─────────────────────────────────────────────
+  'Legend':            'legend',
+  'Outlaw':            'outlaw',
+  'Deputy':            'deputy',
+  'Lawman':            'deputy',
+  'OG Settlers':       'settler',
+  'Settlers':          'settler',
+  'Crimson Creek':     'settler',
+  'Whitelist':         'settler',
+  'Verified':          'member',
+  'Supporter':         'member',
+  'TX':                'member',
+  'Member':            'member',
+>>>>>>> Stashed changes
 };
 
 // Permission definitions per role
+// ─────────────────────────────────────────────────────────────────────────────
+// Tier summary:
+//   owner (5)            → everything
+//   management (4)       → tickets, appeals, applications, announcements, activity
+//   community_manager(3) → tickets, appeals, announcements
+//   moderator (2)        → tickets, appeals
+//   (community roles below have no staff panel access)
+// ─────────────────────────────────────────────────────────────────────────────
 const PERMISSIONS = {
+  // ── Tier 5 ────────────────────────────────────────────────────────────────
   owner: {
     level: 5,
     label: 'Owner',
     color: '#c8a050',
-    canReviewAppeals: true,
-    canReviewApplications: true,
-    canManageUsers: true,
-    canViewStaffPanel: true,
-    canCloseTickets: true,
+    canViewStaffPanel:      true,
+    canCloseTickets:        true,
+    canReviewAppeals:       true,
+    canPostAnnouncements:   true,
+    canReviewApplications:  true,
+    canViewActivity:        true,
+    canManageUsers:         true,
     subTier: 'legend',
   },
-  admin: {
+  hidden_owner: {
+    level: 5,
+    label: 'Head Builder',
+    color: '#c8621a',
+    canViewStaffPanel:      true,
+    canCloseTickets:        true,
+    canReviewAppeals:       true,
+    canPostAnnouncements:   true,
+    canReviewApplications:  true,
+    canViewActivity:        true,
+    canManageUsers:         true,
+    subTier: 'legend',
+  },
+
+  // ── Tier 4 ────────────────────────────────────────────────────────────────
+  management: {
     level: 4,
-    label: 'Admin',
+    label: 'Management',
     color: '#3a7ab8',
-    canReviewAppeals: true,
-    canReviewApplications: true,
-    canManageUsers: false,
-    canViewStaffPanel: true,
-    canCloseTickets: true,
+    canViewStaffPanel:      true,
+    canCloseTickets:        true,
+    canReviewAppeals:       true,
+    canPostAnnouncements:   true,
+    canReviewApplications:  true,
+    canViewActivity:        true,
+    canManageUsers:         false,
     subTier: 'outlaw',
   },
+
+  // ── Tier 3 ────────────────────────────────────────────────────────────────
+  community_manager: {
+    level: 3,
+    label: 'Community Manager',
+    color: '#7b4fcf',
+    canViewStaffPanel:      true,
+    canCloseTickets:        true,
+    canReviewAppeals:       true,
+    canPostAnnouncements:   true,
+    canReviewApplications:  false,
+    canViewActivity:        false,
+    canManageUsers:         false,
+    subTier: 'deputy',
+  },
+
+  // ── Tier 2 ────────────────────────────────────────────────────────────────
   moderator: {
-    level: 3,
-    label: 'Moderator',
-    color: '#c8621a',
-    canReviewAppeals: true,
-    canReviewApplications: false,
-    canManageUsers: false,
-    canViewStaffPanel: true,
-    canCloseTickets: false,
-    subTier: 'deputy',
-  },
-  staff: {
-    level: 3,
-    label: 'Staff',
-    color: '#c8621a',
-    canReviewAppeals: true,
-    canReviewApplications: true,
-    canManageUsers: false,
-    canViewStaffPanel: true,
-    canCloseTickets: true,
-    subTier: 'deputy',
-  },
-  legend: {
     level: 2,
+    label: 'Moderation',
+    color: '#c8621a',
+    canViewStaffPanel:      true,
+    canCloseTickets:        true,
+    canReviewAppeals:       true,
+    canPostAnnouncements:   false,
+    canReviewApplications:  false,
+    canViewActivity:        false,
+    canManageUsers:         false,
+    subTier: 'deputy',
+  },
+
+  // ── Community / in-game roles (no staff panel) ────────────────────────────
+  legend: {
+    level: 1,
     label: 'Legend',
     color: '#c8a050',
-    canReviewAppeals: false,
-    canReviewApplications: false,
-    canManageUsers: false,
-    canViewStaffPanel: false,
-    canCloseTickets: false,
+    canViewStaffPanel:      false,
+    canCloseTickets:        false,
+    canReviewAppeals:       false,
+    canPostAnnouncements:   false,
+    canReviewApplications:  false,
+    canViewActivity:        false,
+    canManageUsers:         false,
     subTier: 'legend',
   },
   outlaw: {
     level: 1,
     label: 'Outlaw',
     color: '#c8621a',
-    canReviewAppeals: false,
-    canReviewApplications: false,
-    canManageUsers: false,
-    canViewStaffPanel: false,
-    canCloseTickets: false,
+    canViewStaffPanel:      false,
+    canCloseTickets:        false,
+    canReviewAppeals:       false,
+    canPostAnnouncements:   false,
+    canReviewApplications:  false,
+    canViewActivity:        false,
+    canManageUsers:         false,
     subTier: 'outlaw',
   },
   deputy: {
     level: 1,
     label: 'Deputy',
     color: '#3a7ab8',
-    canReviewAppeals: false,
-    canReviewApplications: false,
-    canManageUsers: false,
-    canViewStaffPanel: false,
-    canCloseTickets: false,
-    subTier: 'deputy',
-  },
-  junior_mod: {
-    level: 2,
-    label: 'Moderation',
-    color: '#c8621a',
-    canReviewAppeals: true,
-    canReviewApplications: false,
-    canManageUsers: false,
-    canViewStaffPanel: true,
-    canCloseTickets: true,
+    canViewStaffPanel:      false,
+    canCloseTickets:        false,
+    canReviewAppeals:       false,
+    canPostAnnouncements:   false,
+    canReviewApplications:  false,
+    canViewActivity:        false,
+    canManageUsers:         false,
     subTier: 'deputy',
   },
   settler: {
     level: 1,
     label: 'Settler',
     color: '#4a9e4a',
-    canReviewAppeals: false,
-    canReviewApplications: false,
-    canManageUsers: false,
-    canViewStaffPanel: false,
-    canCloseTickets: false,
+    canViewStaffPanel:      false,
+    canCloseTickets:        false,
+    canReviewAppeals:       false,
+    canPostAnnouncements:   false,
+    canReviewApplications:  false,
+    canViewActivity:        false,
+    canManageUsers:         false,
     subTier: 'drifter',
   },
   member: {
     level: 0,
     label: 'Member',
     color: '#7a7068',
-    canReviewAppeals: false,
-    canReviewApplications: false,
-    canManageUsers: false,
-    canViewStaffPanel: false,
-    canCloseTickets: false,
+    canViewStaffPanel:      false,
+    canCloseTickets:        false,
+    canReviewAppeals:       false,
+    canPostAnnouncements:   false,
+    canReviewApplications:  false,
+    canViewActivity:        false,
+    canManageUsers:         false,
     subTier: 'drifter',
   },
   // No recognized role — blocked from portal
@@ -143,23 +218,14 @@ const PERMISSIONS = {
     level: -1,
     label: 'No Access',
     color: '#a03030',
-    canReviewAppeals: false,
-    canReviewApplications: false,
-    canManageUsers: false,
-    canViewStaffPanel: false,
-    canCloseTickets: false,
+    canViewStaffPanel:      false,
+    canCloseTickets:        false,
+    canReviewAppeals:       false,
+    canPostAnnouncements:   false,
+    canReviewApplications:  false,
+    canViewActivity:        false,
+    canManageUsers:         false,
     subTier: 'drifter',
-  },
-  hidden_owner: {
-    level: 5,
-    label: 'Head Builder',
-    color: '#c8621a',
-    canReviewAppeals: true,
-    canReviewApplications: true,
-    canManageUsers: true,
-    canViewStaffPanel: true,
-    canCloseTickets: true,
-    subTier: 'legend',
   },
 };
 
