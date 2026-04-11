@@ -33,6 +33,34 @@ router.post('/', requireAuth, async (req, res) => {
 
     const [id] = await db('applications').insert({ user_id: user.id, player: user.username, discord_tag, age: parseInt(age), rp_experience, char_name, char_background, why_join });
     await logAction('application_submitted', user.id, id, { discord_tag, char_name });
+
+    // Post application to Discord channel
+    try {
+      const fetch = require('node-fetch');
+      const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+      const CHANNEL_ID = process.env.APPLICATIONS_CHANNEL_ID;
+      if (BOT_TOKEN && CHANNEL_ID) {
+        await fetch(`https://discord.com/api/v10/channels/${CHANNEL_ID}/messages`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ embeds: [{
+            title: `New Whitelist Application - ${user.username}`,
+            color: 0xc9a84c,
+            fields: [
+              { name: 'Discord Tag', value: discord_tag, inline: true },
+              { name: 'Age', value: String(age), inline: true },
+              { name: 'Character Name', value: char_name, inline: true },
+              { name: 'RP Experience', value: rp_experience.substring(0, 500), inline: false },
+              { name: 'Character Background', value: char_background.substring(0, 1000) + (char_background.length > 1000 ? '...' : ''), inline: false },
+              { name: 'Why Join', value: why_join.substring(0, 500) + (why_join.length > 500 ? '...' : ''), inline: false },
+            ],
+            footer: { text: `Application ID: ${id} - Crimson Creek RP` },
+            timestamp: new Date().toISOString(),
+          }] }),
+        });
+      }
+    } catch (e) { console.error('Failed to post application to channel:', e); }
+
     res.json({ id, status: 'pending' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -89,11 +117,24 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
           const msgData = await msgRes.json();
           console.log(`[DM] Message response: ${JSON.stringify(msgData)}`);
 
-          if (isApproved && process.env.APPLICATIONS_CHANNEL_ID) {
+          if (process.env.APPLICATIONS_CHANNEL_ID) {
             const chanRes = await fetch(`https://discord.com/api/v10/channels/${process.env.APPLICATIONS_CHANNEL_ID}/messages`, {
               method: 'POST',
               headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ embeds: [{ title: '🎉 New Member Whitelisted', description: `**${application.player}** has been approved and whitelisted!`, color: 0x4a9e4a, fields: [{ name: 'Character Name', value: application.char_name || 'N/A', inline: true }], footer: { text: 'Crimson Creek RP' }, timestamp: new Date().toISOString() }] }),
+              body: JSON.stringify({ embeds: [{
+                title: isApproved ? 'Application Approved' : 'Application Denied',
+                description: isApproved
+                  ? `**${application.player}** has been approved and whitelisted! Welcome to Crimson Creek RP.`
+                  : `**${application.player}**'s whitelist application has been denied.`,
+                color: isApproved ? 0x4a9e4a : 0xe74c3c,
+                fields: [
+                  { name: 'Character Name', value: application.char_name || 'N/A', inline: true },
+                  { name: 'Discord Tag', value: application.discord_tag || 'N/A', inline: true },
+                  ...(reviewer_note ? [{ name: 'Staff Note', value: reviewer_note, inline: false }] : []),
+                ],
+                footer: { text: `Application ID: ${application.id} - Crimson Creek RP` },
+                timestamp: new Date().toISOString(),
+              }] }),
             });
             const chanData = await chanRes.json();
             console.log(`[DM] Channel post response: ${JSON.stringify(chanData)}`);
