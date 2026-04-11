@@ -1,56 +1,11 @@
 const path = require('path');
+const Database = require('better-sqlite3');
 
-let db;
-let usingSQLite = false;
-
-try {
-  const Database = require('better-sqlite3');
-  db = new Database(path.join(__dirname, '..', 'crimson-creek.db'));
-  db.pragma('journal_mode = WAL');
-  usingSQLite = true;
-  console.log('✅ Using better-sqlite3');
-} catch (e) {
-  console.log('⚠️  better-sqlite3 not available, using in-memory store');
-  db = createMemoryDb();
-}
-
-function createMemoryDb() {
-  const store = {
-    users: [], appeals: [], applications: [],
-    tickets: [], bans: [], action_log: [], sessions: []
-  };
-  let autoId = 1;
-
-  return {
-    pragma: () => {},
-    exec: () => {},
-    prepare: (sql) => {
-      const table = (sql.match(/(?:FROM|INTO|UPDATE)\s+(\w+)/i) || [])[1];
-      return {
-        run: (...args) => {
-          const id = autoId++;
-          if (table && store[table]) store[table].push({ id, ...Object.fromEntries(args.map((v,i)=>([`col${i}`,v]))) });
-          return { lastInsertRowid: id, changes: 1 };
-        },
-        get: (...args) => {
-          if (table && store[table]) return store[table][0] || null;
-          return null;
-        },
-        all: (...args) => {
-          if (table && store[table]) return store[table];
-          return [];
-        },
-      };
-    },
-  };
-}
+const dbPath = path.join(__dirname, '..', 'crimson-creek.db');
+const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
 
 function setupDatabase() {
-  if (!usingSQLite) {
-    console.log('✅ In-memory database ready');
-    return;
-  }
-
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -101,7 +56,7 @@ function setupDatabase() {
       category TEXT NOT NULL,
       body TEXT NOT NULL,
       status TEXT DEFAULT 'open',
-      messages TEXT DEFAULT '[]',
+      staff_reply TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
