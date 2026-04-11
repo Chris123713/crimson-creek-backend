@@ -24,7 +24,6 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     const user = req.session.user;
     const {
-      discord_tag,
       age_confirm,
       has_microphone,
       rp_experience,
@@ -37,6 +36,9 @@ router.post('/', requireAuth, async (req, res) => {
       wrongful_accusation,
       secret_code,
     } = req.body;
+
+    // Always use the authenticated user's Discord ID — never trust the form
+    const discord_tag = user.id;
 
     // Required field check
     const required = { discord_tag, age_confirm, has_microphone, rp_experience, been_banned, looking_forward, what_is_failrp, what_is_powergaming, robbery_cooldown, wrongful_accusation, secret_code };
