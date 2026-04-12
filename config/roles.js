@@ -7,6 +7,7 @@
 const ROLE_MAP = {
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   // Discord role name → site role
   // Add your actual Discord role names here
   'Owner':       'owner',
@@ -31,6 +32,10 @@ const ROLE_MAP = {
   'Owner Team':        'owner',
   'Owner':             'owner',
   'Co-Owner':          'owner',
+=======
+  // ── Tier 5 — Full access ──────────────────────────────────────────────────
+  'Owner Team':        'owner',
+>>>>>>> Stashed changes
 =======
   // ── Tier 5 — Full access ──────────────────────────────────────────────────
   'Owner Team':        'owner',
@@ -67,6 +72,9 @@ const ROLE_MAP = {
   'TX':                'member',
   'Member':            'member',
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
