@@ -169,19 +169,22 @@ adminRouter.patch('/notes/:id', requireAuth, requirePermission('canViewStaffPane
   try {
     const { note } = req.body;
     if (!note?.trim()) return res.status(400).json({ error: 'Note cannot be empty' });
+    const existing = await db('staff_notes').where('id', req.params.id).first();
     await db('staff_notes').where('id', req.params.id).update({ note: note.trim() });
-    await logAction('staff_note_edited', req.session.user.username, req.params.id, { preview: note.trim().slice(0, 80) });
+    await logAction('staff_note_edited', req.session.user.username, existing?.target_username || req.params.id, { preview: note.trim().slice(0, 80) });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 adminRouter.delete('/notes/:id', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
   try {
+    const existing = await db('staff_notes').where('id', req.params.id).first();
     await db('staff_notes').where('id', req.params.id).delete();
-    await logAction('staff_note_deleted', req.session.user.username, req.params.id);
+    await logAction('staff_note_deleted', req.session.user.username, existing?.target_username || req.params.id);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 
 // Assign Settlers Discord role when approving an application
 adminRouter.post('/assign-settler-role', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
