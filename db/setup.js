@@ -118,6 +118,15 @@ async function setupDatabase() {
     }
   }
 
+  await knex.schema.createTableIfNotExists('staff_notes', t => {
+    t.increments('id').primary();
+    t.string('target_username').notNullable();
+    t.text('note').notNullable();
+    t.string('author_id').notNullable();
+    t.string('author_username').notNullable();
+    t.datetime('created_at').defaultTo(knex.fn.now());
+  });
+
   console.log('✅ Database tables ready');
 }
 
