@@ -5,41 +5,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ROLE_MAP = {
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-  // Discord role name → site role
-  // Add your actual Discord role names here
-  'Owner':       'owner',
-  'Owner Team':  'owner',
-  'Co-Owner':    'owner',
-  'Admin':       'admin',
-  'Administrator': 'admin',
-  'Senior Mod':  'moderator',
-  'Moderator':   'moderator',
-  'Mod':         'moderator',
-  'Staff':       'staff',
-  'Support':     'staff',
-  'Legend':      'legend',
-  'Outlaw':      'outlaw',
-  'Deputy':      'deputy',
-  'Settlers':    'settler',
-  'Whitelist':   'settler',
-  'Member':      'member',
-  'Verified':    'member',
-=======
   // ── Tier 5 — Full access ──────────────────────────────────────────────────
   'Owner Team':        'owner',
   'Owner':             'owner',
   'Co-Owner':          'owner',
-=======
-  // ── Tier 5 — Full access ──────────────────────────────────────────────────
-  'Owner Team':        'owner',
->>>>>>> Stashed changes
-=======
-  // ── Tier 5 — Full access ──────────────────────────────────────────────────
-  'Owner Team':        'owner',
->>>>>>> Stashed changes
   'Sr. Managment':     'owner',   // Sr. Management = all perms
 
   // ── Tier 4 — Management (tickets, appeals, apps, announcements, activity) ─
@@ -71,13 +40,6 @@ const ROLE_MAP = {
   'Supporter':         'member',
   'TX':                'member',
   'Member':            'member',
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 };
 
 // Permission definitions per role
