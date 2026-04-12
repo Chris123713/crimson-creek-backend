@@ -10,6 +10,7 @@ const appealsRouter = require('./routes/appeals');
 const applicationsRouter = require('./routes/applications');
 const { ticketRouter, adminRouter } = require('./routes/admin');
 const txAdminRouter = require('./routes/txadmin');
+const botRouter = require('./routes/bot');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -59,6 +60,7 @@ app.use('/api/appeals', appealsRouter);
 app.use('/api/applications', applicationsRouter);
 app.use('/api/tickets', ticketRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/bot', botRouter);
 app.use('/api/txadmin', txAdminRouter);
 
 // txAdmin incoming webhook (no auth — uses secret header instead)
