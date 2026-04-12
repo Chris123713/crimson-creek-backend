@@ -25,7 +25,7 @@ ticketRouter.post('/', requireAuth, async (req, res) => {
     const { subject, category, body } = req.body;
     if (!subject || !body) return res.status(400).json({ error: 'Subject and body required' });
     const [id] = await db('tickets').insert({ user_id: req.session.user.id, subject, category: category || 'General', body });
-    await logAction('ticket_created', req.session.user.id, id, { subject });
+    await logAction('ticket_created', req.session.user.username, id, { subject });
     res.json({ id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -34,7 +34,7 @@ ticketRouter.patch('/:id/reply', requireAuth, requirePermission('canViewStaffPan
   try {
     const { reply, status } = req.body;
     await db('tickets').where('id', req.params.id).update({ staff_reply: reply, status: status || 'open', updated_at: new Date().toISOString() });
-    await logAction('ticket_replied', req.session.user.id, req.params.id, { status });
+    await logAction('ticket_replied', req.session.user.username, req.params.id, { status });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -42,7 +42,7 @@ ticketRouter.patch('/:id/reply', requireAuth, requirePermission('canViewStaffPan
 ticketRouter.patch('/:id/close', requireAuth, requirePermission('canCloseTickets'), async (req, res) => {
   try {
     await db('tickets').where('id', req.params.id).update({ status: 'closed', updated_at: new Date().toISOString() });
-    await logAction('ticket_closed', req.session.user.id, req.params.id);
+    await logAction('ticket_closed', req.session.user.username, req.params.id);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -75,7 +75,7 @@ adminRouter.patch('/users/:id/role', requireAuth, requirePermission('canManageUs
     const { role } = req.body;
     const target = await db('users').where('id', req.params.id).first();
     await db('users').where('id', req.params.id).update({ role });
-    await logAction('user_role_changed', req.session.user.id, req.params.id, { new_role: role, target_username: target?.username });
+    await logAction('user_role_changed', req.session.user.username, req.params.id, { new_role: role, target_username: target?.username });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -120,7 +120,7 @@ adminRouter.delete('/sessions/:sid', requireAuth, requirePermission('canManageUs
     }
 
     await db('sessions').where('sid', targetSid).delete();
-    await logAction('session_force_logout', req.session.user.id, targetSid, { target_username: targetUsername });
+    await logAction('session_force_logout', req.session.user.username, targetSid, { target_username: targetUsername });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -160,7 +160,7 @@ adminRouter.post('/notes/:username', requireAuth, requirePermission('canViewStaf
       author_id: req.session.user.id,
       author_username: req.session.user.username,
     });
-    await logAction('staff_note_added', req.session.user.id, req.params.username, { preview: note.trim().slice(0, 80) });
+    await logAction('staff_note_added', req.session.user.username, req.params.username, { preview: note.trim().slice(0, 80) });
     res.json({ id: result[0] });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -170,7 +170,7 @@ adminRouter.patch('/notes/:id', requireAuth, requirePermission('canViewStaffPane
     const { note } = req.body;
     if (!note?.trim()) return res.status(400).json({ error: 'Note cannot be empty' });
     await db('staff_notes').where('id', req.params.id).update({ note: note.trim() });
-    await logAction('staff_note_edited', req.session.user.id, req.params.id, { preview: note.trim().slice(0, 80) });
+    await logAction('staff_note_edited', req.session.user.username, req.params.id, { preview: note.trim().slice(0, 80) });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -178,7 +178,7 @@ adminRouter.patch('/notes/:id', requireAuth, requirePermission('canViewStaffPane
 adminRouter.delete('/notes/:id', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
   try {
     await db('staff_notes').where('id', req.params.id).delete();
-    await logAction('staff_note_deleted', req.session.user.id, req.params.id);
+    await logAction('staff_note_deleted', req.session.user.username, req.params.id);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -206,7 +206,7 @@ adminRouter.post('/assign-settler-role', requireAuth, requirePermission('canView
     }
 
     await db('users').where('discord_id', discord_id).update({ role: 'settler' });
-    await logAction('settler_role_assigned', req.session.user.id, discord_id, { application_id });
+    await logAction('settler_role_assigned', req.session.user.username, discord_id, { application_id });
 
     res.json({ ok: true });
   } catch (err) {

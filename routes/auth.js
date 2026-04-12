@@ -95,7 +95,7 @@ router.get('/discord/callback', async (req, res) => {
       discordRoles: userRoleNames,
     };
 
-    await logAction('user_login', discordUser.id, discordUser.username, { role: siteRole });
+    await logAction('user_login', discordUser.username, discordUser.username, { role: siteRole });
 
     const FRONTEND = process.env.FRONTEND_URL || 'http://localhost:3000';
     const userData = encodeURIComponent(JSON.stringify({
@@ -121,7 +121,7 @@ router.get('/me', (req, res) => {
 
 router.post('/logout', async (req, res) => {
   if (req.session.user) {
-    await logAction('user_logout', req.session.user.id, req.session.user.username);
+    await logAction('user_logout', req.session.user.username, req.session.user.username);
   }
   req.session.destroy();
   res.json({ success: true });
