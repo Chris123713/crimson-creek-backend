@@ -8,15 +8,22 @@ const knex = require('knex')(
         },
       }
     : {
-        // Local fallback — SQLite for dev
         client: 'sqlite3',
         connection: { filename: require('path').join(__dirname, '..', 'crimson-creek.db') },
         useNullAsDefault: true,
       }
 );
 
+async function createIfMissing(tableName, builder) {
+  const exists = await knex.schema.hasTable(tableName);
+  if (!exists) {
+    await knex.schema.createTable(tableName, builder);
+    console.log(`  ↳ Created table ${tableName}`);
+  }
+}
+
 async function setupDatabase() {
-  await knex.schema.createTableIfNotExists('users', t => {
+  await createIfMissing('users', t => {
     t.string('id').primary();
     t.string('discord_id').unique().notNullable();
     t.string('username').notNullable();
@@ -28,7 +35,8 @@ async function setupDatabase() {
     t.datetime('created_at').defaultTo(knex.fn.now());
     t.datetime('last_login').defaultTo(knex.fn.now());
   });
-  await knex.schema.createTableIfNotExists('appeals', t => {
+
+  await createIfMissing('appeals', t => {
     t.increments('id').primary();
     t.string('user_id').notNullable();
     t.string('player').notNullable();
@@ -42,7 +50,8 @@ async function setupDatabase() {
     t.datetime('created_at').defaultTo(knex.fn.now());
     t.datetime('updated_at').defaultTo(knex.fn.now());
   });
-  await knex.schema.createTableIfNotExists('applications', t => {
+
+  await createIfMissing('applications', t => {
     t.increments('id').primary();
     t.string('user_id').notNullable();
     t.string('player').notNullable();
@@ -69,7 +78,8 @@ async function setupDatabase() {
     t.datetime('created_at').defaultTo(knex.fn.now());
     t.datetime('updated_at').defaultTo(knex.fn.now());
   });
-  await knex.schema.createTableIfNotExists('tickets', t => {
+
+  await createIfMissing('tickets', t => {
     t.increments('id').primary();
     t.string('user_id').notNullable();
     t.string('subject').notNullable();
@@ -80,7 +90,8 @@ async function setupDatabase() {
     t.datetime('created_at').defaultTo(knex.fn.now());
     t.datetime('updated_at').defaultTo(knex.fn.now());
   });
-  await knex.schema.createTableIfNotExists('action_log', t => {
+
+  await createIfMissing('action_log', t => {
     t.increments('id').primary();
     t.string('action').notNullable();
     t.string('performed_by').notNullable();
@@ -88,31 +99,39 @@ async function setupDatabase() {
     t.text('details');
     t.datetime('created_at').defaultTo(knex.fn.now());
   });
-  // Sessions table owned by connect-pg-simple in Postgres (uses "expire" column).
-  // Only create for SQLite local dev.
+
+  await createIfMissing('staff_notes', t => {
+    t.increments('id').primary();
+    t.string('target_username').notNullable();
+    t.text('note').notNullable();
+    t.string('author_id').notNullable();
+    t.string('author_username').notNullable();
+    t.datetime('created_at').defaultTo(knex.fn.now());
+  });
+
+  // Sessions table is owned by connect-pg-simple in Postgres.
+  // Only create manually for SQLite local dev.
   if (!process.env.DATABASE_URL) {
-    await knex.schema.createTableIfNotExists("sessions", t => {
-      t.string("sid").primary();
-      t.text("sess").notNullable();
-      t.datetime("expired").notNullable();
+    await createIfMissing('sessions', t => {
+      t.string('sid').primary();
+      t.text('sess').notNullable();
+      t.datetime('expired').notNullable();
     });
   }
 
-  // ── Migrate: add any missing columns to applications table ──────────────────
-  // createTableIfNotExists won't alter an existing table, so we manually add
-  // columns introduced after the initial deploy.
+  // ── Column migrations for applications ──────────────────────────────────────
   const appMigrations = [
-    { name: 'age_confirm',        add: t => t.text('age_confirm')         },
-    { name: 'has_microphone',     add: t => t.text('has_microphone')      },
-    { name: 'rp_clips',          add: t => t.text('rp_clips')            },
-    { name: 'been_banned',        add: t => t.text('been_banned')         },
-    { name: 'looking_forward',    add: t => t.text('looking_forward')     },
-    { name: 'what_is_failrp',     add: t => t.text('what_is_failrp')      },
-    { name: 'what_is_powergaming',add: t => t.text('what_is_powergaming') },
-    { name: 'robbery_cooldown',   add: t => t.text('robbery_cooldown')    },
-    { name: 'wrongful_accusation',add: t => t.text('wrongful_accusation') },
-    { name: 'secret_code',        add: t => t.string('secret_code')       },
-    { name: 'thread_id',          add: t => t.string('thread_id')         },
+    { name: 'age_confirm',         add: t => t.text('age_confirm')          },
+    { name: 'has_microphone',      add: t => t.text('has_microphone')       },
+    { name: 'rp_clips',            add: t => t.text('rp_clips')             },
+    { name: 'been_banned',         add: t => t.text('been_banned')          },
+    { name: 'looking_forward',     add: t => t.text('looking_forward')      },
+    { name: 'what_is_failrp',      add: t => t.text('what_is_failrp')       },
+    { name: 'what_is_powergaming', add: t => t.text('what_is_powergaming')  },
+    { name: 'robbery_cooldown',    add: t => t.text('robbery_cooldown')     },
+    { name: 'wrongful_accusation', add: t => t.text('wrongful_accusation')  },
+    { name: 'secret_code',         add: t => t.string('secret_code')        },
+    { name: 'thread_id',           add: t => t.string('thread_id')          },
   ];
   for (const col of appMigrations) {
     const exists = await knex.schema.hasColumn('applications', col.name);
