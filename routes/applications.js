@@ -62,7 +62,7 @@ router.post('/', requireAuth, async (req, res) => {
     if (secret_code.trim().toLowerCase() !== 'banana')
       return res.status(400).json({ error: 'Incorrect secret code — make sure you read the rules!' });
 
-    const [id] = await db('applications').insert({
+    const [inserted] = await db('applications').insert({
       user_id: user.id,
       player: user.username,
       discord_tag,
@@ -81,7 +81,8 @@ router.post('/', requireAuth, async (req, res) => {
       robbery_cooldown,
       wrongful_accusation,
       secret_code,
-    });
+    }).returning('id');
+    const id = inserted?.id ?? inserted;
     await logAction('application_submitted', user.id, id, { discord_tag });
 
     // Post to Discord forum thread
