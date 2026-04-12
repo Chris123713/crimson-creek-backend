@@ -155,6 +155,19 @@ async function setupDatabase() {
     }
   }
 
+  // Fix sessions table — if it has 'expired' column (old SQLite schema) drop it
+  // so connect-pg-simple can recreate it correctly with 'expire' column
+  if (process.env.DATABASE_URL) {
+    const sessExists = await knex.schema.hasTable('sessions');
+    if (sessExists) {
+      const hasWrongCol = await knex.schema.hasColumn('sessions', 'expired');
+      if (hasWrongCol) {
+        await knex.schema.dropTable('sessions');
+        console.log('  ↳ Dropped old sessions table (wrong column name), will be recreated by connect-pg-simple');
+      }
+    }
+  }
+
   console.log('✅ Database tables ready');
 }
 
