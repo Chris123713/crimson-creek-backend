@@ -94,6 +94,30 @@ async function setupDatabase() {
     t.datetime('expired').notNullable();
   });
 
+  // ── Migrate: add any missing columns to applications table ──────────────────
+  // createTableIfNotExists won't alter an existing table, so we manually add
+  // columns introduced after the initial deploy.
+  const appMigrations = [
+    { name: 'age_confirm',        add: t => t.text('age_confirm')         },
+    { name: 'has_microphone',     add: t => t.text('has_microphone')      },
+    { name: 'rp_clips',          add: t => t.text('rp_clips')            },
+    { name: 'been_banned',        add: t => t.text('been_banned')         },
+    { name: 'looking_forward',    add: t => t.text('looking_forward')     },
+    { name: 'what_is_failrp',     add: t => t.text('what_is_failrp')      },
+    { name: 'what_is_powergaming',add: t => t.text('what_is_powergaming') },
+    { name: 'robbery_cooldown',   add: t => t.text('robbery_cooldown')    },
+    { name: 'wrongful_accusation',add: t => t.text('wrongful_accusation') },
+    { name: 'secret_code',        add: t => t.string('secret_code')       },
+    { name: 'thread_id',          add: t => t.string('thread_id')         },
+  ];
+  for (const col of appMigrations) {
+    const exists = await knex.schema.hasColumn('applications', col.name);
+    if (!exists) {
+      await knex.schema.table('applications', col.add);
+      console.log(`  ↳ Added column applications.${col.name}`);
+    }
+  }
+
   console.log('✅ Database tables ready');
 }
 
