@@ -23,9 +23,10 @@ async function createIfMissing(tableName, builder) {
 }
 
 async function setupDatabase() {
+  // users — create without unique constraint, add it separately if missing
   await createIfMissing('users', t => {
     t.string('id').primary();
-    t.string('discord_id').unique().notNullable();
+    t.string('discord_id').notNullable();
     t.string('username').notNullable();
     t.string('discriminator');
     t.string('avatar');
@@ -35,6 +36,20 @@ async function setupDatabase() {
     t.datetime('created_at').defaultTo(knex.fn.now());
     t.datetime('last_login').defaultTo(knex.fn.now());
   });
+
+  // Add unique constraint on discord_id only if it doesn't already exist
+  if (process.env.DATABASE_URL) {
+    try {
+      await knex.schema.table('users', t => t.unique(['discord_id']));
+    } catch (e) {
+      if (!e.message.includes('already exists')) throw e;
+    }
+  } else {
+    const hasUnique = await knex.schema.hasColumn('users', 'discord_id');
+    if (hasUnique) {
+      try { await knex.schema.table('users', t => t.unique(['discord_id'])); } catch (_) {}
+    }
+  }
 
   await createIfMissing('appeals', t => {
     t.increments('id').primary();
@@ -109,8 +124,7 @@ async function setupDatabase() {
     t.datetime('created_at').defaultTo(knex.fn.now());
   });
 
-  // Sessions table is owned by connect-pg-simple in Postgres.
-  // Only create manually for SQLite local dev.
+  // Sessions table owned by connect-pg-simple in Postgres.
   if (!process.env.DATABASE_URL) {
     await createIfMissing('sessions', t => {
       t.string('sid').primary();
@@ -119,7 +133,7 @@ async function setupDatabase() {
     });
   }
 
-  // ── Column migrations for applications ──────────────────────────────────────
+  // Column migrations for applications
   const appMigrations = [
     { name: 'age_confirm',         add: t => t.text('age_confirm')          },
     { name: 'has_microphone',      add: t => t.text('has_microphone')       },
