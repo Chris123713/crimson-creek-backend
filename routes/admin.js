@@ -93,12 +93,12 @@ adminRouter.get('/stats', requireAuth, requirePermission('canViewStaffPanel'), a
 adminRouter.get('/sessions', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
   try {
     const now = new Date().toISOString();
-    const rawSessions = await db('sessions').where('expired', '>', now).orderBy('expired', 'desc');
+    const rawSessions = await db('sessions').where(process.env.DATABASE_URL ? 'expire' : 'expired', '>', now).orderBy(process.env.DATABASE_URL ? 'expire' : 'expired', 'desc');
     const sessions = rawSessions.map(row => {
       let sessionData = {};
       try { sessionData = JSON.parse(row.sess); } catch (_) {}
       const user = sessionData?.user || null;
-      return { sid: row.sid, expired: row.expired, user: user ? { id: user.id, username: user.username, avatar: user.avatar, role: user.role } : null };
+      return { sid: row.sid, expired: row.expire || row.expired, user: user ? { id: user.id, username: user.username, avatar: user.avatar, role: user.role } : null };
     }).filter(s => s.user !== null);
     res.json(sessions);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -140,50 +140,7 @@ adminRouter.get('/activity', requireAuth, requirePermission('canViewStaffPanel')
 });
 
 
-// STAFF NOTES
-adminRouter.get('/notes/:username', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
-  try {
-    const notes = await db('staff_notes')
-      .where('target_username', req.params.username)
-      .orderBy('created_at', 'desc');
-    res.json(notes);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-adminRouter.post('/notes/:username', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
-  try {
-    const { note } = req.body;
-    if (!note?.trim()) return res.status(400).json({ error: 'Note cannot be empty' });
-    const result = await db('staff_notes').insert({
-      target_username: req.params.username,
-      note: note.trim(),
-      author_id: req.session.user.id,
-      author_username: req.session.user.username,
-    });
-    await logAction('staff_note_added', req.session.user.id, req.params.username, { preview: note.trim().slice(0, 80) });
-    res.json({ id: result[0] });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-adminRouter.patch('/notes/:id', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
-  try {
-    const { note } = req.body;
-    if (!note?.trim()) return res.status(400).json({ error: 'Note cannot be empty' });
-    await db('staff_notes').where('id', req.params.id).update({ note: note.trim() });
-    await logAction('staff_note_edited', req.session.user.id, req.params.id, { preview: note.trim().slice(0, 80) });
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-adminRouter.delete('/notes/:id', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
-  try {
-    await db('staff_notes').where('id', req.params.id).delete();
-    await logAction('staff_note_deleted', req.session.user.id, req.params.id);
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-
+// Assign Settlers Discord role when approving an application
 adminRouter.post('/assign-settler-role', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
   try {
     const { application_id, role_id } = req.body;

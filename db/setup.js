@@ -88,11 +88,15 @@ async function setupDatabase() {
     t.text('details');
     t.datetime('created_at').defaultTo(knex.fn.now());
   });
-  await knex.schema.createTableIfNotExists('sessions', t => {
-    t.string('sid').primary();
-    t.text('sess').notNullable();
-    t.datetime('expired').notNullable();
-  });
+  // Sessions table owned by connect-pg-simple in Postgres (uses "expire" column).
+  // Only create for SQLite local dev.
+  if (!process.env.DATABASE_URL) {
+    await knex.schema.createTableIfNotExists("sessions", t => {
+      t.string("sid").primary();
+      t.text("sess").notNullable();
+      t.datetime("expired").notNullable();
+    });
+  }
 
   // ── Migrate: add any missing columns to applications table ──────────────────
   // createTableIfNotExists won't alter an existing table, so we manually add
@@ -117,15 +121,6 @@ async function setupDatabase() {
       console.log(`  ↳ Added column applications.${col.name}`);
     }
   }
-
-  await knex.schema.createTableIfNotExists('staff_notes', t => {
-    t.increments('id').primary();
-    t.string('target_username').notNullable();
-    t.text('note').notNullable();
-    t.string('author_id').notNullable();
-    t.string('author_username').notNullable();
-    t.datetime('created_at').defaultTo(knex.fn.now());
-  });
 
   console.log('✅ Database tables ready');
 }
