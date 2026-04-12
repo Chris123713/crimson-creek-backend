@@ -6,6 +6,7 @@
 
 const ROLE_MAP = {
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   // Discord role name → site role
   // Add your actual Discord role names here
   'Owner':       'owner',
@@ -30,6 +31,10 @@ const ROLE_MAP = {
   'Owner Team':        'owner',
   'Owner':             'owner',
   'Co-Owner':          'owner',
+=======
+  // ── Tier 5 — Full access ──────────────────────────────────────────────────
+  'Owner Team':        'owner',
+>>>>>>> Stashed changes
   'Sr. Managment':     'owner',   // Sr. Management = all perms
 
   // ── Tier 4 — Management (tickets, appeals, apps, announcements, activity) ─
@@ -61,6 +66,9 @@ const ROLE_MAP = {
   'Supporter':         'member',
   'TX':                'member',
   'Member':            'member',
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 };
 
