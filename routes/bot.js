@@ -90,6 +90,7 @@ router.get('/applications', requireBotAuth, async (req, res) => {
   try {
     let query = db('applications').orderBy('created_at', 'desc');
     if (req.query.status) query = query.where('status', req.query.status);
+    if (req.query.user_id) query = query.where('user_id', req.query.user_id);
     const apps = await query;
     res.json(apps);
   } catch (err) { res.status(500).json({ error: err.message }); }
