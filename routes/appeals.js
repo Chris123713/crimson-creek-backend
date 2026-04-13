@@ -59,7 +59,7 @@ router.patch('/:id', requireAuth, requirePermission('canReviewAppeals'), async (
         const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
         const isApproved = status === 'approved';
 
-        // ── Log to appeal result channel ─────────────────────────────────────
+        // ── Log to appeal result forum channel (create a new thread post) ────
         const LOG_CHANNEL = isApproved
           ? '1493204388989239296'
           : '1493204450628735077';
@@ -79,11 +79,19 @@ router.patch('/:id', requireAuth, requirePermission('canReviewAppeals'), async (
           footer: { text: `Appeal #${req.params.id} · Crimson Creek RP` },
           timestamp: new Date().toISOString(),
         };
-        await fetch(`https://discord.com/api/v10/channels/${LOG_CHANNEL}/messages`, {
+        // Forum/thread channels require creating a thread with an embedded message
+        const threadRes = await fetch(`https://discord.com/api/v10/channels/${LOG_CHANNEL}/threads`, {
           method: 'POST',
           headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ embeds: [logEmbed] }),
-        }).catch(e => console.error('Appeal channel log failed:', e));
+          body: JSON.stringify({
+            name: `${isApproved ? '✅' : '❌'} ${appeal.player || 'Unknown'} — Appeal ${isApproved ? 'Approved' : 'Denied'}`,
+            message: { embeds: [logEmbed] },
+          }),
+        });
+        if (!threadRes.ok) {
+          const err = await threadRes.text();
+          console.error('Appeal forum thread failed:', threadRes.status, err);
+        }
 
         // ── DM the player ─────────────────────────────────────────────────────
         const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
