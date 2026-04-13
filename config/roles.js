@@ -20,8 +20,8 @@ const ROLE_MAP = {
   'Community Manager':  'community_manager',
 
   // ── Tier 1 — Government (tickets + appeals only) ─────────────────────────
-  'Senior Government':  'moderator',
-  'Government':         'moderator',
+  'Senior Government':  'government',
+  'Government':         'government',
 
   // ── In-game / community roles (no staff panel) ────────────────────────────
   'Legend':             'legend',
@@ -104,7 +104,7 @@ const PERMISSIONS = {
   },
 
   // ── Tier 1 — Government ───────────────────────────────────────────────────
-  moderator: {
+  government: {
     level: 1,
     label: 'Government',
     color: '#c8621a',
