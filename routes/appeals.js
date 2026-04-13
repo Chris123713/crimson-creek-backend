@@ -57,6 +57,35 @@ router.patch('/:id', requireAuth, requirePermission('canReviewAppeals'), async (
       if (appeal) {
         const fetch = require('node-fetch');
         const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+        const isApproved = status === 'approved';
+
+        // ── Log to appeal result channel ─────────────────────────────────────
+        const LOG_CHANNEL = isApproved
+          ? '1493204388989239296'
+          : '1493204450628735077';
+        const logEmbed = {
+          title: isApproved ? '✅ Ban Appeal Approved' : '❌ Ban Appeal Denied',
+          color: isApproved ? 0x4a9e4a : 0xe74c3c,
+          fields: [
+            { name: 'Player',       value: appeal.player || 'Unknown', inline: true },
+            { name: 'Discord Tag',  value: appeal.discord_tag || 'N/A', inline: true },
+            { name: 'Steam ID',     value: appeal.steam_id || 'N/A',   inline: true },
+            { name: 'Ban Reason',   value: appeal.ban_reason || 'N/A', inline: false },
+            { name: 'Appeal',       value: (appeal.story || 'N/A').slice(0, 1024), inline: false },
+            { name: 'Reviewed By',  value: req.session.user.username,  inline: true },
+            { name: 'Decision',     value: isApproved ? 'Approved ✅' : 'Denied ❌', inline: true },
+            ...(reviewer_note ? [{ name: 'Staff Note', value: reviewer_note, inline: false }] : []),
+          ],
+          footer: { text: `Appeal #${req.params.id} · Crimson Creek RP` },
+          timestamp: new Date().toISOString(),
+        };
+        await fetch(`https://discord.com/api/v10/channels/${LOG_CHANNEL}/messages`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ embeds: [logEmbed] }),
+        }).catch(e => console.error('Appeal channel log failed:', e));
+
+        // ── DM the player ─────────────────────────────────────────────────────
         const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
           method: 'POST',
           headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
@@ -64,7 +93,6 @@ router.patch('/:id', requireAuth, requirePermission('canReviewAppeals'), async (
         });
         const dmChannel = await dmRes.json();
         if (dmChannel.id) {
-          const isApproved = status === 'approved';
           await fetch(`https://discord.com/api/v10/channels/${dmChannel.id}/messages`, {
             method: 'POST',
             headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
@@ -78,7 +106,6 @@ router.patch('/:id', requireAuth, requirePermission('canReviewAppeals'), async (
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-module.exports = router;
 // DELETE /api/appeals/:id — owner only
 router.delete('/:id', requireAuth, requirePermission('canManageUsers'), async (req, res) => {
   try {
@@ -89,3 +116,5 @@ router.delete('/:id', requireAuth, requirePermission('canManageUsers'), async (r
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+module.exports = router;
