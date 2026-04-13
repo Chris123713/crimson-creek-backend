@@ -99,12 +99,11 @@ adminRouter.get('/stats', requireAuth, requirePermission('canViewStaffPanel'), a
 
 adminRouter.get('/sessions', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
   try {
-    const rawSessions = await db('sessions').where(process.env.DATABASE_URL ? 'expire' : 'expired', '>', new Date()).orderBy(process.env.DATABASE_URL ? 'expire' : 'expired', 'desc');
+    const now = new Date().toISOString();
+    const rawSessions = await db('sessions').where(process.env.DATABASE_URL ? 'expire' : 'expired', '>', now).orderBy(process.env.DATABASE_URL ? 'expire' : 'expired', 'desc');
     const sessions = rawSessions.map(row => {
       let sessionData = {};
-      try {
-        sessionData = typeof row.sess === 'string' ? JSON.parse(row.sess) : (row.sess || {});
-      } catch (_) {}
+      try { sessionData = JSON.parse(row.sess); } catch (_) {}
       const user = sessionData?.user || null;
       return { sid: row.sid, expired: row.expire || row.expired, user: user ? { id: user.id, username: user.username, avatar: user.avatar, role: user.role } : null };
     }).filter(s => s.user !== null);
@@ -118,7 +117,7 @@ adminRouter.delete('/sessions/:sid', requireAuth, requirePermission('canManageUs
     const targetSid = req.params.sid;
     const row = await db('sessions').where('sid', targetSid).first();
     let targetUsername = 'unknown';
-    if (row) { try { targetUsername = JSON.parse(row.sess)?.user?.username || 'unknown'; } catch (_) {} }
+    if (row) { try { const sd = typeof row.sess === 'string' ? JSON.parse(row.sess) : (row.sess || {}); targetUsername = sd?.user?.username || 'unknown'; } catch (_) {} }
 
     // Push force_logout SSE event BEFORE deleting session so client is still connected
     const targetSSE = sseClients.get(targetSid);
@@ -128,7 +127,7 @@ adminRouter.delete('/sessions/:sid', requireAuth, requirePermission('canManageUs
     }
 
     await db('sessions').where('sid', targetSid).delete();
-    await logAction('session_force_logout', req.session.user.username, targetSid, { target_username: targetUsername });
+    await logAction('session_force_logout', req.session.user.username, targetUsername, { target_sid: targetSid });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

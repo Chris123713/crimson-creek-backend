@@ -176,11 +176,11 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
 
     await db('applications').where('id', req.params.id).update({
       status,
-      reviewer_id: req.session.user.id,
+      reviewer_id: req.session.user.username,
       reviewer_note: reviewer_note || null,
       updated_at: new Date().toISOString(),
     });
-    await logAction('application_reviewed', req.session.user.id, req.params.id, { status, reviewer_note });
+    await logAction('application_reviewed', req.session.user.username, req.params.id, { status, reviewer_note });
 
     // Assign Settlers role if approved
     if (status === 'approved') {
