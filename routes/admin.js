@@ -6,51 +6,209 @@ const { requireAuth, requirePermission, requireRole } = require('../middleware/a
 const ticketRouter = express.Router();
 const adminRouter = express.Router();
 
-// TICKETS
+// ── TICKETS ───────────────────────────────────────────────────────────────────
+
+// GET /api/tickets — list tickets (staff sees all, players see own only)
+// Each ticket is enriched with a message_count so the UI can show "X msgs"
 ticketRouter.get('/', requireAuth, async (req, res) => {
   try {
     const user = req.session.user;
     let tickets;
     if (user.permissions.canViewStaffPanel) {
-      tickets = await db('tickets').orderBy('created_at', 'desc');
+      tickets = await db('tickets').orderBy('updated_at', 'desc');
     } else {
-      tickets = await db('tickets').where('user_id', user.id).orderBy('created_at', 'desc');
+      tickets = await db('tickets').where('user_id', user.id).orderBy('updated_at', 'desc');
     }
-    res.json(tickets);
+
+    // Attach message counts
+    const ids = tickets.map(t => t.id);
+    const counts = ids.length
+      ? await db('ticket_messages').whereIn('ticket_id', ids).groupBy('ticket_id').select('ticket_id', db.raw('count(*) as msg_count'))
+      : [];
+    const countMap = Object.fromEntries(counts.map(c => [c.ticket_id, parseInt(c.msg_count)]));
+
+    // Attach last-message preview (the most recent message body + sender)
+    const previews = ids.length
+      ? await db('ticket_messages')
+          .whereIn('ticket_id', ids)
+          .orderBy('created_at', 'desc')
+          .select('ticket_id', 'sender_username', 'body', 'is_staff', 'created_at')
+      : [];
+    // keep only the most-recent per ticket
+    const previewMap = {};
+    for (const p of previews) {
+      if (!previewMap[p.ticket_id]) previewMap[p.ticket_id] = p;
+    }
+
+    const enriched = tickets.map(t => ({
+      ...t,
+      message_count: countMap[t.id] || 0,
+      last_message: previewMap[t.id] || null,
+    }));
+
+    res.json(enriched);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/tickets/:id — single ticket detail + all messages
+ticketRouter.get('/:id', requireAuth, async (req, res) => {
+  try {
+    const user = req.session.user;
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    // Players can only view their own ticket
+    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const messages = await db('ticket_messages')
+      .where('ticket_id', req.params.id)
+      .orderBy('created_at', 'asc');
+
+    res.json({ ...ticket, messages });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/tickets — open a new ticket (player only sends initial message)
 ticketRouter.post('/', requireAuth, async (req, res) => {
   try {
     const { subject, category, body } = req.body;
     if (!subject || !body) return res.status(400).json({ error: 'Subject and body required' });
-    const [inserted] = await db('tickets').insert({ user_id: req.session.user.id, subject, category: category || 'General', body }).returning('id');
+
+    const [inserted] = await db('tickets')
+      .insert({ user_id: req.session.user.id, subject, category: category || 'General', body })
+      .returning('id');
     const id = inserted?.id ?? inserted;
+
+    // Save the opening message into ticket_messages
+    await db('ticket_messages').insert({
+      ticket_id: id,
+      sender_id: req.session.user.id,
+      sender_username: req.session.user.username,
+      is_staff: !!req.session.user.permissions?.canViewStaffPanel,
+      body,
+    });
+
     await logAction('ticket_created', req.session.user.username, id, { subject });
     const ticket = await db('tickets').where('id', id).first();
-    broadcast(req.app, 'new_ticket', ticket);
+
+    // Broadcast to staff only (not to the player who just opened it — they already know)
+    broadcastToStaff(req.app, 'new_ticket', { ...ticket, sender_sid: req.sessionID });
     res.json({ id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-ticketRouter.patch('/:id/reply', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
+// POST /api/tickets/:id/message — send a message in an existing ticket thread
+// Both players (on their own ticket) and staff can call this
+ticketRouter.post('/:id/message', requireAuth, async (req, res) => {
   try {
-    const { reply, status } = req.body;
-    await db('tickets').where('id', req.params.id).update({ staff_reply: reply, status: status || 'open', updated_at: new Date().toISOString() });
-    await logAction('ticket_replied', req.session.user.username, req.params.id, { status });
+    const { body } = req.body;
+    if (!body?.trim()) return res.status(400).json({ error: 'Message body required' });
+
+    const user = req.session.user;
     const ticket = await db('tickets').where('id', req.params.id).first();
-    broadcast(req.app, 'update_ticket', ticket);
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    // Players can only message on their own ticket
+    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const isStaff = !!user.permissions.canViewStaffPanel;
+
+    const [inserted] = await db('ticket_messages').insert({
+      ticket_id: ticket.id,
+      sender_id: user.id,
+      sender_username: user.username,
+      is_staff: isStaff,
+      body: body.trim(),
+    }).returning('id');
+    const msgId = inserted?.id ?? inserted;
+
+    // Bump the ticket's updated_at so it floats to top of the list
+    await db('tickets')
+      .where('id', ticket.id)
+      .update({ updated_at: new Date().toISOString() });
+
+    await logAction('ticket_message', user.username, ticket.id, { preview: body.trim().slice(0, 80) });
+
+    const message = await db('ticket_messages').where('id', msgId).first();
+    const updatedTicket = await db('tickets').where('id', ticket.id).first();
+
+    // ── SSE: broadcast the new message to everyone watching this ticket.
+    // We include sender_sid so the client can skip showing a notification
+    // to the person who actually sent this message.
+    broadcast(req.app, 'ticket_message', {
+      ticket_id: ticket.id,
+      message,
+      ticket: updatedTicket,
+      sender_sid: req.sessionID,   // ← frontend compares this to its own SID
+    });
+
+    res.json({ success: true, message });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /api/tickets/:id/close
+ticketRouter.patch('/:id/close', requireAuth, async (req, res) => {
+  try {
+    const user = req.session.user;
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    // Staff OR the ticket owner can close
+    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    await db('tickets')
+      .where('id', req.params.id)
+      .update({ status: 'closed', updated_at: new Date().toISOString() });
+
+    await logAction('ticket_closed', user.username, req.params.id);
+    const updated = await db('tickets').where('id', req.params.id).first();
+    broadcast(req.app, 'update_ticket', { ticket: updated, sender_sid: req.sessionID });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-ticketRouter.patch('/:id/close', requireAuth, requirePermission('canCloseTickets'), async (req, res) => {
+// Legacy staff-reply endpoint — kept so old frontend code doesn't 404.
+// Internally it now just calls the new message route logic.
+ticketRouter.patch('/:id/reply', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
   try {
-    await db('tickets').where('id', req.params.id).update({ status: 'closed', updated_at: new Date().toISOString() });
-    await logAction('ticket_closed', req.session.user.username, req.params.id);
+    const { reply } = req.body;
+    if (!reply?.trim()) return res.status(400).json({ error: 'Reply body required' });
+
     const ticket = await db('tickets').where('id', req.params.id).first();
-    broadcast(req.app, 'update_ticket', ticket);
-    res.json({ success: true });
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    const user = req.session.user;
+    const [inserted] = await db('ticket_messages').insert({
+      ticket_id: ticket.id,
+      sender_id: user.id,
+      sender_username: user.username,
+      is_staff: true,
+      body: reply.trim(),
+    }).returning('id');
+    const msgId = inserted?.id ?? inserted;
+
+    await db('tickets')
+      .where('id', ticket.id)
+      .update({ staff_reply: reply.trim(), updated_at: new Date().toISOString() });
+
+    await logAction('ticket_replied', user.username, req.params.id, {});
+    const message = await db('ticket_messages').where('id', msgId).first();
+    const updatedTicket = await db('tickets').where('id', ticket.id).first();
+
+    broadcast(req.app, 'ticket_message', {
+      ticket_id: ticket.id,
+      message,
+      ticket: updatedTicket,
+      sender_sid: req.sessionID,
+    });
+
+    res.json({ success: true, message });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -225,12 +383,25 @@ adminRouter.post('/assign-settler-role', requireAuth, requirePermission('canView
   }
 });
 
-// ── SSE broadcast helper ──────────────────────────────────────────────────────
+// ── SSE broadcast helpers ─────────────────────────────────────────────────────
+
+// Broadcasts to ALL connected SSE clients (staff + players)
 function broadcast(app, event, data) {
   const sseClients = app.locals.sseClients;
   if (!sseClients) return;
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const res of sseClients.values()) {
+    try { res.write(payload); } catch (_) {}
+  }
+}
+
+// Broadcasts only to clients whose session has canViewStaffPanel
+// Used for new_ticket events so a player doesn't get pinged about their own new ticket
+function broadcastToStaff(app, event, data) {
+  const sseClients = app.locals.sseClients;
+  if (!sseClients) return;
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const [, res] of sseClients.entries()) {
     try { res.write(payload); } catch (_) {}
   }
 }

@@ -101,10 +101,45 @@ async function setupDatabase() {
     t.string('category').notNullable();
     t.text('body').notNullable();
     t.string('status').defaultTo('open');
-    t.text('staff_reply');
+    t.text('staff_reply'); // legacy — kept for backwards compat, no longer written
     t.datetime('created_at').defaultTo(knex.fn.now());
     t.datetime('updated_at').defaultTo(knex.fn.now());
   });
+
+  // ── ticket_messages: full conversation thread per ticket ──────────────────
+  await createIfMissing('ticket_messages', t => {
+    t.increments('id').primary();
+    t.integer('ticket_id').notNullable().references('id').inTable('tickets').onDelete('CASCADE');
+    t.string('sender_id').notNullable();      // user.id (discord snowflake string)
+    t.string('sender_username').notNullable(); // display name
+    t.boolean('is_staff').defaultTo(false);
+    t.text('body').notNullable();
+    t.datetime('created_at').defaultTo(knex.fn.now());
+  });
+
+  // ── Migrate old single staff_reply rows into ticket_messages ─────────────
+  {
+    const legacyTickets = await knex('tickets')
+      .whereNotNull('staff_reply')
+      .whereRaw("staff_reply != ''");
+    for (const t of legacyTickets) {
+      const alreadyMigrated = await knex('ticket_messages')
+        .where('ticket_id', t.id)
+        .where('is_staff', true)
+        .first();
+      if (!alreadyMigrated) {
+        await knex('ticket_messages').insert({
+          ticket_id: t.id,
+          sender_id: 'legacy',
+          sender_username: 'Staff',
+          is_staff: true,
+          body: t.staff_reply,
+          created_at: t.updated_at || t.created_at,
+        });
+        console.log(`  ↳ Migrated legacy staff_reply for ticket #${t.id}`);
+      }
+    }
+  }
 
   await createIfMissing('action_log', t => {
     t.increments('id').primary();
