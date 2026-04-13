@@ -115,6 +115,15 @@ async function setupDatabase() {
     t.datetime('created_at').defaultTo(knex.fn.now());
   });
 
+  await createIfMissing('announcements', t => {
+    t.increments('id').primary();
+    t.string('title').notNullable();
+    t.text('body').notNullable();
+    t.boolean('pinned').defaultTo(false);
+    t.string('author').notNullable();
+    t.datetime('created_at').defaultTo(knex.fn.now());
+  });
+
   await createIfMissing('staff_notes', t => {
     t.increments('id').primary();
     t.string('target_username').notNullable();

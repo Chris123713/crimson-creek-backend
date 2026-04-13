@@ -28,8 +28,13 @@ router.post('/', requireAuth, async (req, res) => {
     const existing = await db('appeals').where({ user_id: user.id, status: 'pending' }).first();
     if (existing) return res.status(400).json({ error: 'You already have a pending appeal' });
 
-    const [id] = await db('appeals').insert({ user_id: user.id, player: user.username, discord_tag, steam_id, ban_reason, story });
+    const [inserted] = await db('appeals').insert({ user_id: user.id, player: user.username, discord_tag, steam_id, ban_reason, story }).returning('id');
+    const id = inserted?.id ?? inserted;
     await logAction('appeal_submitted', user.id, id, { discord_tag, steam_id, ban_reason });
+    const newAppeal = await db('appeals').where('id', id).first();
+    // broadcast to all SSE clients
+    const sseClients = req.app.locals.sseClients;
+    if (sseClients) { const payload = `event: new_appeal\ndata: ${JSON.stringify(newAppeal)}\n\n`; for (const res2 of sseClients.values()) { try { res2.write(payload); } catch(_) {} } }
     res.json({ id, status: 'pending' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -42,6 +47,9 @@ router.patch('/:id', requireAuth, requirePermission('canReviewAppeals'), async (
 
     await db('appeals').where('id', req.params.id).update({ status, reviewer_id: req.session.user.id, reviewer_note: reviewer_note || null, updated_at: new Date().toISOString() });
     await logAction('appeal_reviewed', req.session.user.id, req.params.id, { status, reviewer_note });
+    const updatedAppeal = await db('appeals').where('id', req.params.id).first();
+    const sseClients2 = req.app.locals.sseClients;
+    if (sseClients2) { const payload2 = `event: update_appeal\ndata: ${JSON.stringify(updatedAppeal)}\n\n`; for (const res3 of sseClients2.values()) { try { res3.write(payload2); } catch(_) {} } }
 
     // Send Discord DM
     try {

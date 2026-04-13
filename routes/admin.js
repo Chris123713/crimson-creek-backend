@@ -24,8 +24,11 @@ ticketRouter.post('/', requireAuth, async (req, res) => {
   try {
     const { subject, category, body } = req.body;
     if (!subject || !body) return res.status(400).json({ error: 'Subject and body required' });
-    const [id] = await db('tickets').insert({ user_id: req.session.user.id, subject, category: category || 'General', body });
+    const [inserted] = await db('tickets').insert({ user_id: req.session.user.id, subject, category: category || 'General', body }).returning('id');
+    const id = inserted?.id ?? inserted;
     await logAction('ticket_created', req.session.user.username, id, { subject });
+    const ticket = await db('tickets').where('id', id).first();
+    broadcast(req.app, 'new_ticket', ticket);
     res.json({ id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -35,6 +38,8 @@ ticketRouter.patch('/:id/reply', requireAuth, requirePermission('canViewStaffPan
     const { reply, status } = req.body;
     await db('tickets').where('id', req.params.id).update({ staff_reply: reply, status: status || 'open', updated_at: new Date().toISOString() });
     await logAction('ticket_replied', req.session.user.username, req.params.id, { status });
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    broadcast(req.app, 'update_ticket', ticket);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -43,6 +48,8 @@ ticketRouter.patch('/:id/close', requireAuth, requirePermission('canCloseTickets
   try {
     await db('tickets').where('id', req.params.id).update({ status: 'closed', updated_at: new Date().toISOString() });
     await logAction('ticket_closed', req.session.user.username, req.params.id);
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    broadcast(req.app, 'update_ticket', ticket);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -50,7 +57,7 @@ ticketRouter.patch('/:id/close', requireAuth, requirePermission('canCloseTickets
 // ADMIN
 adminRouter.get('/staff', requireAuth, async (req, res) => {
   try {
-    const staff = await db('users').whereIn('role', ['owner', 'hidden_owner', 'sr_management', 'management', 'head_gov', 'head_builder', 'community_manager', 'sr_government', 'government']).orderBy('last_login', 'desc').select('username', 'role', 'discord_id', 'avatar', 'last_login');
+    const staff = await db('users').whereIn('role', ['owner', 'hidden_owner', 'admin', 'management', 'staff', 'community_manager', 'moderator', 'junior_mod']).orderBy('last_login', 'desc').select('username', 'role', 'discord_id', 'avatar', 'last_login');
     res.json(staff);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -154,14 +161,15 @@ adminRouter.post('/notes/:username', requireAuth, requirePermission('canViewStaf
   try {
     const { note } = req.body;
     if (!note?.trim()) return res.status(400).json({ error: 'Note cannot be empty' });
-    const result = await db('staff_notes').insert({
+    const [noteInserted] = await db('staff_notes').insert({
       target_username: req.params.username,
       note: note.trim(),
       author_id: req.session.user.id,
       author_username: req.session.user.username,
-    });
+    }).returning('id');
+    const noteId = noteInserted?.id ?? noteInserted;
     await logAction('staff_note_added', req.session.user.username, req.params.username, { preview: note.trim().slice(0, 80) });
-    res.json({ id: result[0] });
+    res.json({ id: noteId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -215,6 +223,47 @@ adminRouter.post('/assign-settler-role', requireAuth, requirePermission('canView
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── SSE broadcast helper ──────────────────────────────────────────────────────
+function broadcast(app, event, data) {
+  const sseClients = app.locals.sseClients;
+  if (!sseClients) return;
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const res of sseClients.values()) {
+    try { res.write(payload); } catch (_) {}
+  }
+}
+
+// ── Announcements ─────────────────────────────────────────────────────────────
+adminRouter.get('/announcements', async (req, res) => {
+  try {
+    const announcements = await db('announcements').orderBy('pinned', 'desc').orderBy('created_at', 'desc');
+    res.json(announcements);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+adminRouter.post('/announcements', requireAuth, requirePermission('canPostAnnouncements'), async (req, res) => {
+  try {
+    const { title, body, pinned } = req.body;
+    if (!title || !body) return res.status(400).json({ error: 'Title and body required' });
+    const [inserted] = await db('announcements').insert({
+      title, body, pinned: pinned || false, author: req.session.user.username,
+    }).returning('*');
+    const announcement = inserted?.id ? inserted : await db('announcements').where('id', inserted).first();
+    await logAction('announcement_posted', req.session.user.username, announcement.id, { title });
+    broadcast(req.app, 'new_announcement', announcement);
+    res.json(announcement);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+adminRouter.delete('/announcements/:id', requireAuth, requirePermission('canPostAnnouncements'), async (req, res) => {
+  try {
+    await db('announcements').where('id', req.params.id).delete();
+    await logAction('announcement_deleted', req.session.user.username, req.params.id);
+    broadcast(req.app, 'delete_announcement', { id: parseInt(req.params.id) });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── SSE: session keep-alive + force-logout channel ───────────────────────────
