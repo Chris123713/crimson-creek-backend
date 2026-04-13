@@ -18,7 +18,6 @@ const ROLE_MAP = {
   // ── Tier 3 — Head Builder ────────────────────────────────────────────────
   'Head Builder':       'head_builder',
   'Builder Team':       'builder_team',
-  'Builder Team':       'head_builder',
 
   // ── Tier 2 — Community Manager ───────────────────────────────────────────
   'Community Manager':  'community_manager',
