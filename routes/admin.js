@@ -74,8 +74,14 @@ ticketRouter.get('/:id', requireAuth, async (req, res) => {
     }
 
     const messages = await db('ticket_messages')
-      .where('ticket_id', req.params.id)
-      .orderBy('created_at', 'asc');
+      .leftJoin('users', 'ticket_messages.sender_id', 'users.id')
+      .select(
+        'ticket_messages.*',
+        'users.avatar as sender_avatar',
+        'users.role as sender_role'
+      )
+      .where('ticket_messages.ticket_id', req.params.id)
+      .orderBy('ticket_messages.created_at', 'asc');
 
     res.json({ ...ticket, messages });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -432,6 +438,26 @@ adminRouter.post('/assign-settler-role', requireAuth, requirePermission('canView
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// PATCH /api/tickets/:id/reopen
+ticketRouter.patch('/:id/reopen', requireAuth, async (req, res) => {
+  try {
+    const user = req.session.user;
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    await db('tickets').where('id', req.params.id).update({ status: 'open', updated_at: new Date().toISOString() });
+    await logAction('ticket_reopened', user.username, req.params.id);
+    const updated = await db('tickets')
+      .leftJoin('users', 'tickets.user_id', 'users.id')
+      .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
+      .where('tickets.id', req.params.id).first();
+    broadcast(req.app, 'update_ticket', { ticket: updated, sender_sid: req.sessionID });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // DELETE /api/tickets/:id — owner only

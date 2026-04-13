@@ -45,7 +45,7 @@ router.patch('/:id', requireAuth, requirePermission('canReviewAppeals'), async (
     if (!['approved', 'denied'].includes(status))
       return res.status(400).json({ error: 'Invalid status' });
 
-    await db('appeals').where('id', req.params.id).update({ status, reviewer_id: req.session.user.id, reviewer_note: reviewer_note || null, updated_at: new Date().toISOString() });
+    await db('appeals').where('id', req.params.id).update({ status, reviewer_id: req.session.user.username, reviewer_note: reviewer_note || null, updated_at: new Date().toISOString() });
     await logAction('appeal_reviewed', req.session.user.id, req.params.id, { status, reviewer_note });
     const updatedAppeal = await db('appeals').where('id', req.params.id).first();
     const sseClients2 = req.app.locals.sseClients;
