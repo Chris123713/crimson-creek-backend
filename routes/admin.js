@@ -105,7 +105,7 @@ ticketRouter.post('/', requireAuth, async (req, res) => {
     const ticket = await db('tickets').where('id', id).first();
 
     // Broadcast to staff only (not to the player who just opened it — they already know)
-    broadcastToStaff(req.app, 'new_ticket', { ...ticket, sender_sid: req.sessionID });
+    broadcastToStaff(req.app, 'new_ticket', { ...ticket, user_username: req.session.user.username, sender_sid: req.sessionID });
     res.json({ id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
