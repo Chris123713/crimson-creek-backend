@@ -1,29 +1,33 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// ROLE CONFIG
+// ROLE CONFIG — Each Discord role has its own unique site role
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ROLE_MAP = {
-  // ── Tier 5 — Owner (everything including force logout) ────────────────────
+  // ── Tier 5 — Owner ───────────────────────────────────────────────────────
   'Owner Team':         'owner',
-  'Owner':              'owner',
-  'Co-Owner':           'owner',
 
-  // ── Tier 4 — Sr. Management (everything except force logout) ─────────────
+  // ── Tier 4 — Sr. Management ──────────────────────────────────────────────
   'Sr. Managment':      'sr_management',
 
-  // ── Tier 3 — Management (tickets, appeals, apps, announcements, activity, manage users) ─
+  // ── Tier 3 — Management ──────────────────────────────────────────────────
   'Managment':          'management',
-  'Head Gov. Official': 'management',
-  'Head Builder':       'management',
 
-  // ── Tier 2 — Community Manager (tickets, appeals, announcements) ──────────
+  // ── Tier 3 — Head Gov. Official ──────────────────────────────────────────
+  'Head Gov. Official': 'head_gov',
+
+  // ── Tier 3 — Head Builder ────────────────────────────────────────────────
+  'Head Builder':       'head_builder',
+
+  // ── Tier 2 — Community Manager ───────────────────────────────────────────
   'Community Manager':  'community_manager',
 
-  // ── Tier 1 — Government (tickets + appeals only) ─────────────────────────
-  'Senior Government':  'government',
+  // ── Tier 1 — Sr. Government ──────────────────────────────────────────────
+  'Senior Government':  'sr_government',
+
+  // ── Tier 1 — Government ──────────────────────────────────────────────────
   'Government':         'government',
 
-  // ── In-game / community roles (no staff panel) ────────────────────────────
+  // ── In-game / community roles (no staff panel) ───────────────────────────
   'Legend':             'legend',
   'Outlaw':             'outlaw',
   'Deputy':             'deputy',
@@ -39,7 +43,7 @@ const ROLE_MAP = {
 };
 
 const PERMISSIONS = {
-  // ── Tier 5 — Owner ────────────────────────────────────────────────────────
+  // ── Tier 5 — Owner (everything + force logout) ────────────────────────────
   owner: {
     level: 5,
     label: 'Owner',
@@ -55,7 +59,7 @@ const PERMISSIONS = {
     subTier: 'legend',
   },
 
-  // ── Tier 4 — Sr. Management ───────────────────────────────────────────────
+  // ── Tier 4 — Sr. Management (everything except force logout) ──────────────
   sr_management: {
     level: 4,
     label: 'Sr. Management',
@@ -87,6 +91,38 @@ const PERMISSIONS = {
     subTier: 'outlaw',
   },
 
+  // ── Tier 3 — Head Gov. Official ───────────────────────────────────────────
+  head_gov: {
+    level: 3,
+    label: 'Head Gov. Official',
+    color: '#3a7ab8',
+    canViewStaffPanel:     true,
+    canCloseTickets:       true,
+    canReviewAppeals:      true,
+    canPostAnnouncements:  true,
+    canReviewApplications: true,
+    canViewActivity:       true,
+    canManageUsers:        false,
+    canForceLogout:        false,
+    subTier: 'outlaw',
+  },
+
+  // ── Tier 3 — Head Builder ─────────────────────────────────────────────────
+  head_builder: {
+    level: 3,
+    label: 'Head Builder',
+    color: '#3a7ab8',
+    canViewStaffPanel:     true,
+    canCloseTickets:       true,
+    canReviewAppeals:      true,
+    canPostAnnouncements:  true,
+    canReviewApplications: true,
+    canViewActivity:       true,
+    canManageUsers:        false,
+    canForceLogout:        false,
+    subTier: 'outlaw',
+  },
+
   // ── Tier 2 — Community Manager ────────────────────────────────────────────
   community_manager: {
     level: 2,
@@ -96,6 +132,22 @@ const PERMISSIONS = {
     canCloseTickets:       true,
     canReviewAppeals:      true,
     canPostAnnouncements:  true,
+    canReviewApplications: false,
+    canViewActivity:       false,
+    canManageUsers:        false,
+    canForceLogout:        false,
+    subTier: 'deputy',
+  },
+
+  // ── Tier 1 — Sr. Government ───────────────────────────────────────────────
+  sr_government: {
+    level: 1,
+    label: 'Sr. Government',
+    color: '#c8621a',
+    canViewStaffPanel:     true,
+    canCloseTickets:       true,
+    canReviewAppeals:      true,
+    canPostAnnouncements:  false,
     canReviewApplications: false,
     canViewActivity:       false,
     canManageUsers:        false,
