@@ -50,7 +50,7 @@ ticketRouter.patch('/:id/close', requireAuth, requirePermission('canCloseTickets
 // ADMIN
 adminRouter.get('/staff', requireAuth, async (req, res) => {
   try {
-    const staff = await db('users').whereIn('role', ['owner', 'hidden_owner', 'admin', 'management', 'staff', 'community_manager', 'moderator', 'junior_mod']).orderBy('last_login', 'desc').select('username', 'role', 'discord_id', 'avatar', 'last_login');
+    const staff = await db('users').whereIn('role', ['owner', 'hidden_owner', 'sr_management', 'management', 'head_gov', 'head_builder', 'community_manager', 'sr_government', 'government']).orderBy('last_login', 'desc').select('username', 'role', 'discord_id', 'avatar', 'last_login');
     res.json(staff);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
