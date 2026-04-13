@@ -99,11 +99,12 @@ adminRouter.get('/stats', requireAuth, requirePermission('canViewStaffPanel'), a
 
 adminRouter.get('/sessions', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
   try {
-    const now = new Date().toISOString();
-    const rawSessions = await db('sessions').where(process.env.DATABASE_URL ? 'expire' : 'expired', '>', now).orderBy(process.env.DATABASE_URL ? 'expire' : 'expired', 'desc');
+    const rawSessions = await db('sessions').where(process.env.DATABASE_URL ? 'expire' : 'expired', '>', new Date()).orderBy(process.env.DATABASE_URL ? 'expire' : 'expired', 'desc');
     const sessions = rawSessions.map(row => {
       let sessionData = {};
-      try { sessionData = JSON.parse(row.sess); } catch (_) {}
+      try {
+        sessionData = typeof row.sess === 'string' ? JSON.parse(row.sess) : (row.sess || {});
+      } catch (_) {}
       const user = sessionData?.user || null;
       return { sid: row.sid, expired: row.expire || row.expired, user: user ? { id: user.id, username: user.username, avatar: user.avatar, role: user.role } : null };
     }).filter(s => s.user !== null);
