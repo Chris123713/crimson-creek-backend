@@ -17,6 +17,8 @@ const ROLE_MAP = {
 
   // ── Tier 3 — Head Builder ────────────────────────────────────────────────
   'Head Builder':       'head_builder',
+  'Builder Team':       'builder_team',
+  'Builder Team':       'head_builder',
 
   // ── Tier 2 — Community Manager ───────────────────────────────────────────
   'Community Manager':  'community_manager',
@@ -47,7 +49,7 @@ const PERMISSIONS = {
   owner: {
     level: 5,
     label: 'Owner',
-    color: '#c8a050',
+    color: '#71368a',
     canViewStaffPanel:     true,
     canCloseTickets:       true,
     canReviewAppeals:      true,
@@ -63,7 +65,7 @@ const PERMISSIONS = {
   sr_management: {
     level: 4,
     label: 'Sr. Management',
-    color: '#c8a050',
+    color: '#118080',
     canViewStaffPanel:     true,
     canCloseTickets:       true,
     canReviewAppeals:      true,
@@ -79,7 +81,7 @@ const PERMISSIONS = {
   management: {
     level: 3,
     label: 'Management',
-    color: '#3a7ab8',
+    color: '#118080',
     canViewStaffPanel:     true,
     canCloseTickets:       true,
     canReviewAppeals:      true,
@@ -95,7 +97,7 @@ const PERMISSIONS = {
   head_gov: {
     level: 3,
     label: 'Head Gov. Official',
-    color: '#3a7ab8',
+    color: '#118080',
     canViewStaffPanel:     true,
     canCloseTickets:       true,
     canReviewAppeals:      true,
@@ -109,25 +111,41 @@ const PERMISSIONS = {
 
   // ── Tier 3 — Head Builder ─────────────────────────────────────────────────
   head_builder: {
-    level: 3,
+    level: 5,
     label: 'Head Builder',
-    color: '#3a7ab8',
+    color: '#8b316a',
     canViewStaffPanel:     true,
     canCloseTickets:       true,
     canReviewAppeals:      true,
     canPostAnnouncements:  true,
     canReviewApplications: true,
     canViewActivity:       true,
-    canManageUsers:        false,
+    canManageUsers:        true,
     canForceLogout:        false,
-    subTier: 'outlaw',
+    subTier: 'legend',
+  },
+
+  // ── Tier 3 — Builder Team ─────────────────────────────────────────────────
+  builder_team: {
+    level: 5,
+    label: 'Builder Team',
+    color: '#8b316a',
+    canViewStaffPanel:     true,
+    canCloseTickets:       true,
+    canReviewAppeals:      true,
+    canPostAnnouncements:  true,
+    canReviewApplications: true,
+    canViewActivity:       true,
+    canManageUsers:        true,
+    canForceLogout:        false,
+    subTier: 'legend',
   },
 
   // ── Tier 2 — Community Manager ────────────────────────────────────────────
   community_manager: {
     level: 2,
     label: 'Community Manager',
-    color: '#7b4fcf',
+    color: '#1f8b56',
     canViewStaffPanel:     true,
     canCloseTickets:       true,
     canReviewAppeals:      true,
@@ -143,7 +161,7 @@ const PERMISSIONS = {
   sr_government: {
     level: 1,
     label: 'Sr. Government',
-    color: '#c8621a',
+    color: '#b2f6cf',
     canViewStaffPanel:     true,
     canCloseTickets:       true,
     canReviewAppeals:      true,
@@ -159,7 +177,7 @@ const PERMISSIONS = {
   government: {
     level: 1,
     label: 'Government',
-    color: '#c8621a',
+    color: '#b2f6cf',
     canViewStaffPanel:     true,
     canCloseTickets:       true,
     canReviewAppeals:      true,
