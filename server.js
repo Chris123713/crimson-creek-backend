@@ -4,6 +4,7 @@ const session = require('express-session');
 const cors = require('cors');
 
 const { setupDatabase } = require('./db/setup');
+const { setSseClients } = require('./db/log');
 const connectPgSimple = require('connect-pg-simple');
 const authRouter = require('./routes/auth');
 const appealsRouter = require('./routes/appeals');
@@ -18,6 +19,7 @@ const PORT = process.env.PORT || 3001;
 // ── SSE session store — maps session ID → SSE response object ─────────────────
 const sseClients = new Map();
 app.locals.sseClients = sseClients;
+setSseClients(sseClients); // wire SSE clients into logAction for real-time activity broadcast
 
 setupDatabase();
 
