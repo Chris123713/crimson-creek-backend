@@ -264,7 +264,6 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-module.exports = router;
 // DELETE /api/applications/:id — owner only
 router.delete('/:id', requireAuth, requirePermission('canManageUsers'), async (req, res) => {
   try {
@@ -275,3 +274,5 @@ router.delete('/:id', requireAuth, requirePermission('canManageUsers'), async (r
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+module.exports = router;
