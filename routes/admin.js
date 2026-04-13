@@ -15,9 +15,16 @@ ticketRouter.get('/', requireAuth, async (req, res) => {
     const user = req.session.user;
     let tickets;
     if (user.permissions.canViewStaffPanel) {
-      tickets = await db('tickets').orderBy('updated_at', 'desc');
+      tickets = await db('tickets')
+        .leftJoin('users', 'tickets.user_id', 'users.id')
+        .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
+        .orderBy('tickets.updated_at', 'desc');
     } else {
-      tickets = await db('tickets').where('user_id', user.id).orderBy('updated_at', 'desc');
+      tickets = await db('tickets')
+        .leftJoin('users', 'tickets.user_id', 'users.id')
+        .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
+        .where('tickets.user_id', user.id)
+        .orderBy('tickets.updated_at', 'desc');
     }
 
     // Attach message counts
@@ -54,7 +61,11 @@ ticketRouter.get('/', requireAuth, async (req, res) => {
 ticketRouter.get('/:id', requireAuth, async (req, res) => {
   try {
     const user = req.session.user;
-    const ticket = await db('tickets').where('id', req.params.id).first();
+    const ticket = await db('tickets')
+      .leftJoin('users', 'tickets.user_id', 'users.id')
+      .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
+      .where('tickets.id', req.params.id)
+      .first();
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
 
     // Players can only view their own ticket
@@ -134,16 +145,21 @@ ticketRouter.post('/:id/message', requireAuth, async (req, res) => {
     await logAction('ticket_message', user.username, ticket.id, { preview: body.trim().slice(0, 80) });
 
     const message = await db('ticket_messages').where('id', msgId).first();
-    const updatedTicket = await db('tickets').where('id', ticket.id).first();
+    const updatedTicket = await db('tickets')
+      .leftJoin('users', 'tickets.user_id', 'users.id')
+      .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
+      .where('tickets.id', ticket.id)
+      .first();
 
     // ── SSE: broadcast the new message to everyone watching this ticket.
-    // We include sender_sid so the client can skip showing a notification
-    // to the person who actually sent this message.
+    // We include sender_sid so the client can:
+    //   1. Skip showing a notification badge/sound for their own send
+    //   2. Still append the message to the thread (don't skip the UI update!)
     broadcast(req.app, 'ticket_message', {
       ticket_id: ticket.id,
       message,
       ticket: updatedTicket,
-      sender_sid: req.sessionID,   // ← frontend compares this to its own SID
+      sender_sid: req.sessionID,
     });
 
     res.json({ success: true, message });
@@ -167,7 +183,11 @@ ticketRouter.patch('/:id/close', requireAuth, async (req, res) => {
       .update({ status: 'closed', updated_at: new Date().toISOString() });
 
     await logAction('ticket_closed', user.username, req.params.id);
-    const updated = await db('tickets').where('id', req.params.id).first();
+    const updated = await db('tickets')
+      .leftJoin('users', 'tickets.user_id', 'users.id')
+      .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
+      .where('tickets.id', req.params.id)
+      .first();
     broadcast(req.app, 'update_ticket', { ticket: updated, sender_sid: req.sessionID });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -199,7 +219,11 @@ ticketRouter.patch('/:id/reply', requireAuth, requirePermission('canViewStaffPan
 
     await logAction('ticket_replied', user.username, req.params.id, {});
     const message = await db('ticket_messages').where('id', msgId).first();
-    const updatedTicket = await db('tickets').where('id', ticket.id).first();
+    const updatedTicket = await db('tickets')
+      .leftJoin('users', 'tickets.user_id', 'users.id')
+      .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
+      .where('tickets.id', ticket.id)
+      .first();
 
     broadcast(req.app, 'ticket_message', {
       ticket_id: ticket.id,
