@@ -79,3 +79,13 @@ router.patch('/:id', requireAuth, requirePermission('canReviewAppeals'), async (
 });
 
 module.exports = router;
+// DELETE /api/appeals/:id — owner only
+router.delete('/:id', requireAuth, requirePermission('canManageUsers'), async (req, res) => {
+  try {
+    const appeal = await db('appeals').where('id', req.params.id).first();
+    if (!appeal) return res.status(404).json({ error: 'Appeal not found' });
+    await db('appeals').where('id', req.params.id).delete();
+    await logAction('appeal_deleted', req.session.user.username, req.params.id, { player: appeal.player });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});

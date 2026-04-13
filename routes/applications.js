@@ -265,3 +265,13 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
 });
 
 module.exports = router;
+// DELETE /api/applications/:id — owner only
+router.delete('/:id', requireAuth, requirePermission('canManageUsers'), async (req, res) => {
+  try {
+    const app = await db('applications').where('id', req.params.id).first();
+    if (!app) return res.status(404).json({ error: 'Application not found' });
+    await db('applications').where('id', req.params.id).delete();
+    await logAction('application_deleted', req.session.user.username, req.params.id, { player: app.player });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});

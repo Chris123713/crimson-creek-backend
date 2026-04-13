@@ -189,6 +189,33 @@ ticketRouter.patch('/:id/close', requireAuth, async (req, res) => {
       .where('tickets.id', req.params.id)
       .first();
     broadcast(req.app, 'update_ticket', { ticket: updated, sender_sid: req.sessionID });
+
+    // ── Discord webhook: log closed ticket thread ─────────────────────────────
+    if (process.env.TICKET_LOG_WEBHOOK) {
+      try {
+        const fetch = require('node-fetch');
+        const messages = await db('ticket_messages').where('ticket_id', req.params.id).orderBy('created_at', 'asc');
+        const thread = messages.map(m => `**${m.sender_username}** ${m.is_staff ? '[STAFF]' : '[PLAYER]'} — ${new Date(m.created_at).toLocaleString()}\n${m.body}`).join('\n\n');
+        const embed = {
+          title: `🎫 Ticket Closed — ${ticket.subject}`,
+          description: thread.slice(0, 4000) || '_No messages_',
+          color: 0x7a6060,
+          fields: [
+            { name: 'Opened by', value: updated.user_username || ticket.user_id, inline: true },
+            { name: 'Closed by', value: user.username, inline: true },
+            { name: 'Category', value: ticket.category || 'General', inline: true },
+          ],
+          footer: { text: `Ticket #${req.params.id}` },
+          timestamp: new Date().toISOString(),
+        };
+        await fetch(process.env.TICKET_LOG_WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ embeds: [embed] }),
+        });
+      } catch (whErr) { console.error('Ticket webhook failed:', whErr); }
+    }
+
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -405,6 +432,18 @@ adminRouter.post('/assign-settler-role', requireAuth, requirePermission('canView
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// DELETE /api/tickets/:id — owner only
+ticketRouter.delete('/:id', requireAuth, requirePermission('canManageUsers'), async (req, res) => {
+  try {
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    await db('ticket_messages').where('ticket_id', req.params.id).delete();
+    await db('tickets').where('id', req.params.id).delete();
+    await logAction('ticket_deleted', req.session.user.username, req.params.id, { subject: ticket.subject });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── SSE broadcast helpers ─────────────────────────────────────────────────────
