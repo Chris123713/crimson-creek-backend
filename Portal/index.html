@@ -742,7 +742,7 @@ function Portal({ user, onLogout }) {
         try {
           const t = JSON.parse(e.data);
           const author = t.user_username || t.user_id;
-          const mapped = { id:`TKT-${String(t.id).padStart(3,'0')}`, _id:t.id, subject:t.subject, category:t.category, body:t.body, status:t.status, date:new Date(t.created_at).toLocaleDateString(), author, staffReply:t.staff_reply||null, messages:[{ from:author, role:'player', text:t.body, time:new Date(t.created_at).toLocaleString() }] };
+          const mapped = { id:`TKT-${String(t.id).padStart(3,'0')}`, _id:t.id, subject:t.subject, category:t.category, body:t.body, status:t.status, date:new Date(t.created_at).toLocaleDateString(), author, staffReply:t.staff_reply||null, messages:[{ from:author, role:'player', text:t.body, time:new Date(t.created_at).toLocaleString(), discordId:t.user_discord_id||null, avatar:t.user_avatar||null }] };
           setTickets(prev => {
             const existing = prev.find(x => x._id === t.id);
             if (existing) {
@@ -1752,7 +1752,7 @@ function SupportPage({ user, perms, tickets, setTickets, showToast, username }) 
           id:`TKT-${String(data.id).padStart(3,"0")}`, _id:data.id,
           subject:form.subject, category:form.category, body:form.body,
           status:"open", date:"Today", author:username,
-          messages:[{ from:username, role:"player", text:form.body, time:"Just now" }]
+          messages:[{ from:username, role:"player", text:form.body, time:"Just now", discordId:user.id||null, avatar:user.avatar||null }]
         };
         setTickets(p => p.find(x => x._id === data.id) ? p : [newTicket, ...p]);
         setForm({ subject:"", category:"General", body:"" });
