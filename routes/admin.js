@@ -201,30 +201,92 @@ ticketRouter.patch('/:id/close', requireAuth, async (req, res) => {
       .first();
     broadcast(req.app, 'update_ticket', { ticket: updated, sender_sid: req.sessionID });
 
-    // ── Discord webhook: log closed ticket thread ─────────────────────────────
-    if (process.env.TICKET_LOG_WEBHOOK) {
+    // ── Discord transcript: log full ticket thread to transcript channel ────
+    const transcriptChannel = process.env.TICKET_TRANSCRIPT_CHANNEL_ID;
+    const botToken = process.env.DISCORD_BOT_TOKEN;
+    if (transcriptChannel && botToken) {
       try {
         const fetch = require('node-fetch');
-        const messages = await db('ticket_messages').where('ticket_id', req.params.id).orderBy('created_at', 'asc');
-        const thread = messages.map(m => `**${m.sender_username}** ${m.is_staff ? '[STAFF]' : '[PLAYER]'} — ${new Date(m.created_at).toLocaleString()}\n${m.body}`).join('\n\n');
-        const embed = {
-          title: `🎫 Ticket Closed — ${ticket.subject}`,
-          description: thread.slice(0, 4000) || '_No messages_',
-          color: 0x7a6060,
-          fields: [
-            { name: 'Opened by', value: updated.user_username || ticket.user_id, inline: true },
-            { name: 'Closed by', value: user.username, inline: true },
-            { name: 'Category', value: ticket.category || 'General', inline: true },
-          ],
-          footer: { text: `Ticket #${req.params.id}` },
-          timestamp: new Date().toISOString(),
-        };
-        await fetch(process.env.TICKET_LOG_WEBHOOK, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ embeds: [embed] }),
+        const messages = await db('ticket_messages')
+          .leftJoin('users', 'ticket_messages.sender_id', 'users.id')
+          .select('ticket_messages.*', 'users.avatar as sender_avatar', 'users.discord_id as sender_discord_id', 'users.role as sender_role')
+          .where('ticket_messages.ticket_id', req.params.id)
+          .orderBy('ticket_messages.created_at', 'asc');
+        const msgCount = messages.length;
+        const openedAt = ticket.created_at ? new Date(ticket.created_at).toLocaleString() : 'Unknown';
+        const closedAt = new Date().toLocaleString();
+
+        // Get closer's avatar for the header
+        const closerUser = await db('users').where('id', user.id).first();
+        const closerAvatar = closerUser?.avatar && closerUser?.discord_id
+          ? `https://cdn.discordapp.com/avatars/${closerUser.discord_id}/${closerUser.avatar}.png?size=128`
+          : null;
+
+        // Get opener's avatar
+        const openerAvatar = updated.user_avatar && updated.user_username
+          ? (() => { const opener = db('users').where('username', updated.user_username).first(); return null; })()
+          : null;
+        const openerUser = await db('users').where('id', ticket.user_id).first();
+        const openerAvatarUrl = openerUser?.avatar && openerUser?.discord_id
+          ? `https://cdn.discordapp.com/avatars/${openerUser.discord_id}/${openerUser.avatar}.png?size=128`
+          : null;
+
+        const headers = { 'Authorization': `Bot ${botToken}`, 'Content-Type': 'application/json' };
+        const send = (body) => fetch(`https://discord.com/api/v10/channels/${transcriptChannel}/messages`, { method: 'POST', headers, body: JSON.stringify(body) });
+
+        // Header embed with closer's profile pic
+        await send({
+          embeds: [{
+            author: {
+              name: `${user.username} closed this ticket`,
+              icon_url: closerAvatar || undefined,
+            },
+            title: `📋 Ticket #${req.params.id} — ${ticket.subject}`,
+            color: 0xc9963a,
+            fields: [
+              { name: 'Opened by', value: updated.user_username || ticket.user_id, inline: true },
+              { name: 'Closed by', value: user.username, inline: true },
+              { name: 'Category', value: ticket.category || 'General', inline: true },
+              { name: 'Opened', value: openedAt, inline: true },
+              { name: 'Closed', value: closedAt, inline: true },
+              { name: 'Messages', value: String(msgCount), inline: true },
+            ],
+            thumbnail: openerAvatarUrl ? { url: openerAvatarUrl } : undefined,
+            footer: { text: 'Crimson Creek RP — Ticket Transcript' },
+            timestamp: new Date().toISOString(),
+          }],
         });
-      } catch (whErr) { console.error('Ticket webhook failed:', whErr); }
+
+        // Each message as its own embed with the sender's profile pic
+        for (const m of messages) {
+          const avatarUrl = m.sender_avatar && m.sender_discord_id
+            ? `https://cdn.discordapp.com/avatars/${m.sender_discord_id}/${m.sender_avatar}.png?size=128`
+            : null;
+          const tag = m.is_staff ? '🛡️ STAFF' : '👤 PLAYER';
+          const roleColor = m.is_staff ? 0x3a7ab8 : 0xc9963a;
+          const time = new Date(m.created_at).toLocaleString();
+
+          await send({
+            embeds: [{
+              author: {
+                name: `${m.sender_username} ${tag}`,
+                icon_url: avatarUrl || undefined,
+              },
+              description: m.body.length > 4000 ? m.body.slice(0, 4000) + '...' : m.body,
+              color: roleColor,
+              footer: { text: time },
+            }],
+          });
+        }
+
+        // Closing divider
+        await send({
+          embeds: [{
+            description: `── End of Transcript ── **Ticket #${req.params.id}** ── ${msgCount} message${msgCount !== 1 ? 's' : ''} ──`,
+            color: 0xc01a2a,
+          }],
+        });
+      } catch (whErr) { console.error('Ticket transcript failed:', whErr); }
     }
 
     res.json({ success: true });
