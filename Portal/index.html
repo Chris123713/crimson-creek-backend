@@ -1765,7 +1765,7 @@ function SupportPage({ user, perms, tickets, setTickets, showToast, username }) 
 
   function sendReply(ticketId, isStaff) {
     if(!replyText.trim()) return;
-    const msg={ from:username, role:isStaff?"staff":"player", text:replyText.trim(), time:"Just now" };
+    const msg={ from:username, role:isStaff?"staff":"player", text:replyText.trim(), time:"Just now", discordId:user.id||null, avatar:user.avatar||null };
     setTickets(p=>p.map(t=>{
       if(t.id!==ticketId) return t;
       const updated={ ...t, messages:[...(t.messages||[]), msg] };
@@ -2000,7 +2000,7 @@ function StaffTicketItem({ t, user, perms, setTickets, logAction, showToast, pus
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({ reply:replyText.trim(), status:"open" }),
     }).catch(()=>{});
-    const msg = { from: user.username, role: "staff", text: replyText.trim(), time: "Just now" };
+    const msg = { from: user.username, role: "staff", text: replyText.trim(), time: "Just now", discordId: user.id||null, avatar: user.avatar||null };
     setTickets(p => p.map(tk => tk.id !== t.id ? tk : { ...tk, messages: [...(tk.messages || []), msg] }));
     logAction(`${user.username} replied to ticket ${t.id}`);
     setReplyText("");
