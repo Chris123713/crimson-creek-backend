@@ -201,12 +201,13 @@ ticketRouter.patch('/:id/close', requireAuth, async (req, res) => {
       .first();
     broadcast(req.app, 'update_ticket', { ticket: updated, sender_sid: req.sessionID });
 
-    // ── Discord transcript: log full ticket thread to transcript channel ────
+    // ── Discord transcript: upload HTML file to transcript channel ─────────
     const transcriptChannel = process.env.TICKET_TRANSCRIPT_CHANNEL_ID;
     const botToken = process.env.DISCORD_BOT_TOKEN;
     if (transcriptChannel && botToken) {
       try {
         const fetch = require('node-fetch');
+        // Use built-in multipart form boundary for file upload
         const messages = await db('ticket_messages')
           .leftJoin('users', 'ticket_messages.sender_id', 'users.id')
           .select('ticket_messages.*', 'users.avatar as sender_avatar', 'users.discord_id as sender_discord_id', 'users.role as sender_role')
@@ -216,75 +217,106 @@ ticketRouter.patch('/:id/close', requireAuth, async (req, res) => {
         const openedAt = ticket.created_at ? new Date(ticket.created_at).toLocaleString() : 'Unknown';
         const closedAt = new Date().toLocaleString();
 
-        // Get closer's avatar for the header
         const closerUser = await db('users').where('id', user.id).first();
         const closerAvatar = closerUser?.avatar && closerUser?.discord_id
-          ? `https://cdn.discordapp.com/avatars/${closerUser.discord_id}/${closerUser.avatar}.png?size=128`
-          : null;
-
-        // Get opener's avatar
-        const openerAvatar = updated.user_avatar && updated.user_username
-          ? (() => { const opener = db('users').where('username', updated.user_username).first(); return null; })()
-          : null;
+          ? `https://cdn.discordapp.com/avatars/${closerUser.discord_id}/${closerUser.avatar}.png?size=128` : null;
         const openerUser = await db('users').where('id', ticket.user_id).first();
-        const openerAvatarUrl = openerUser?.avatar && openerUser?.discord_id
-          ? `https://cdn.discordapp.com/avatars/${openerUser.discord_id}/${openerUser.avatar}.png?size=128`
-          : null;
+        const openerAvatar = openerUser?.avatar && openerUser?.discord_id
+          ? `https://cdn.discordapp.com/avatars/${openerUser.discord_id}/${openerUser.avatar}.png?size=128` : null;
 
-        const headers = { 'Authorization': `Bot ${botToken}`, 'Content-Type': 'application/json' };
-        const send = (body) => fetch(`https://discord.com/api/v10/channels/${transcriptChannel}/messages`, { method: 'POST', headers, body: JSON.stringify(body) });
+        // Build HTML transcript
+        const msgHtml = messages.map(m => {
+          const avatarUrl = m.sender_avatar && m.sender_discord_id
+            ? `https://cdn.discordapp.com/avatars/${m.sender_discord_id}/${m.sender_avatar}.png?size=128`
+            : null;
+          const isStaff = m.is_staff;
+          const color = isStaff ? '#3a7ab8' : '#c9963a';
+          const tag = isStaff ? 'STAFF' : 'PLAYER';
+          const time = new Date(m.created_at).toLocaleString();
+          const avatarHtml = avatarUrl
+            ? `<img src="${avatarUrl}" style="width:40px;height:40px;border-radius:50%;border:2px solid ${color};">`
+            : `<div style="width:40px;height:40px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:#fff;">${m.sender_username.charAt(0).toUpperCase()}</div>`;
+          const bodyEscaped = m.body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+          return `<div style="display:flex;gap:12px;padding:16px 20px;border-bottom:1px solid #1a1714;">
+            ${avatarHtml}
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <span style="font-weight:700;color:${color};font-size:14px;">${m.sender_username}</span>
+                <span style="font-size:10px;background:${color}22;color:${color};border:1px solid ${color}40;padding:1px 6px;border-radius:3px;font-weight:600;">${tag}</span>
+                <span style="font-size:11px;color:#6b6158;margin-left:auto;">${time}</span>
+              </div>
+              <div style="font-size:13px;color:#c4b9a8;line-height:1.7;">${bodyEscaped}</div>
+            </div>
+          </div>`;
+        }).join('');
 
-        // Header embed with closer's profile pic
-        await send({
+        const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Ticket #${req.params.id} — ${ticket.subject}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0d0b09;color:#e8dfd4;font-family:'Segoe UI',sans-serif;}</style></head>
+<body>
+<div style="max-width:800px;margin:0 auto;min-height:100vh;">
+  <div style="background:linear-gradient(135deg,#1a0e06ee,#0f0a0add);padding:32px;text-align:center;border-bottom:2px solid #c9963a40;">
+    <div style="font-size:10px;color:#c9963a;letter-spacing:5px;font-weight:700;margin-bottom:8px;">CRIMSON CREEK RP</div>
+    <div style="font-size:28px;font-weight:700;letter-spacing:2px;margin-bottom:6px;">TICKET TRANSCRIPT</div>
+    <div style="width:60px;height:2px;background:linear-gradient(to right,transparent,#c9963a,transparent);margin:12px auto;"></div>
+    <div style="font-size:16px;color:#c9963a;font-weight:600;">#${req.params.id} — ${ticket.subject.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#1a1714;border-bottom:1px solid #1a1714;">
+    <div style="background:#12100e;padding:14px;text-align:center;"><div style="font-size:10px;color:#6b6158;letter-spacing:1px;margin-bottom:4px;">OPENED BY</div><div style="font-size:13px;font-weight:600;color:#c9963a;">${(updated.user_username || ticket.user_id).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div></div>
+    <div style="background:#12100e;padding:14px;text-align:center;"><div style="font-size:10px;color:#6b6158;letter-spacing:1px;margin-bottom:4px;">CLOSED BY</div><div style="font-size:13px;font-weight:600;color:#c01a2a;">${user.username.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div></div>
+    <div style="background:#12100e;padding:14px;text-align:center;"><div style="font-size:10px;color:#6b6158;letter-spacing:1px;margin-bottom:4px;">CATEGORY</div><div style="font-size:13px;font-weight:600;">${(ticket.category || 'General').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div></div>
+    <div style="background:#12100e;padding:14px;text-align:center;"><div style="font-size:10px;color:#6b6158;letter-spacing:1px;margin-bottom:4px;">OPENED</div><div style="font-size:12px;">${openedAt}</div></div>
+    <div style="background:#12100e;padding:14px;text-align:center;"><div style="font-size:10px;color:#6b6158;letter-spacing:1px;margin-bottom:4px;">CLOSED</div><div style="font-size:12px;">${closedAt}</div></div>
+    <div style="background:#12100e;padding:14px;text-align:center;"><div style="font-size:10px;color:#6b6158;letter-spacing:1px;margin-bottom:4px;">MESSAGES</div><div style="font-size:13px;font-weight:600;">${msgCount}</div></div>
+  </div>
+  <div style="background:#12100e;">
+    ${msgHtml}
+  </div>
+  <div style="background:#0d0b09;padding:20px;text-align:center;border-top:1px solid #1a1714;">
+    <div style="font-size:11px;color:#6b6158;">Crimson Creek RP — Ticket System — Generated ${closedAt}</div>
+  </div>
+</div>
+</body></html>`;
+
+        // Upload as file attachment with a summary embed (raw multipart)
+        const boundary = '----CrimsonCreekTranscript' + Date.now();
+        const fileBuffer = Buffer.from(html, 'utf-8');
+        const payloadJson = JSON.stringify({
           embeds: [{
-            author: {
-              name: `${user.username} closed this ticket`,
-              icon_url: closerAvatar || undefined,
-            },
+            author: { name: `${user.username} closed this ticket`, icon_url: closerAvatar || undefined },
             title: `📋 Ticket #${req.params.id} — ${ticket.subject}`,
             color: 0xc9963a,
             fields: [
               { name: 'Opened by', value: updated.user_username || ticket.user_id, inline: true },
               { name: 'Closed by', value: user.username, inline: true },
               { name: 'Category', value: ticket.category || 'General', inline: true },
-              { name: 'Opened', value: openedAt, inline: true },
-              { name: 'Closed', value: closedAt, inline: true },
               { name: 'Messages', value: String(msgCount), inline: true },
             ],
-            thumbnail: openerAvatarUrl ? { url: openerAvatarUrl } : undefined,
-            footer: { text: 'Crimson Creek RP — Ticket Transcript' },
+            thumbnail: openerAvatar ? { url: openerAvatar } : undefined,
+            footer: { text: 'Download the HTML file to view the full transcript' },
             timestamp: new Date().toISOString(),
           }],
+          attachments: [{ id: 0, filename: `ticket-${req.params.id}-transcript.html` }],
         });
 
-        // Each message as its own embed with the sender's profile pic
-        for (const m of messages) {
-          const avatarUrl = m.sender_avatar && m.sender_discord_id
-            ? `https://cdn.discordapp.com/avatars/${m.sender_discord_id}/${m.sender_avatar}.png?size=128`
-            : null;
-          const tag = m.is_staff ? '🛡️ STAFF' : '👤 PLAYER';
-          const roleColor = m.is_staff ? 0x3a7ab8 : 0xc9963a;
-          const time = new Date(m.created_at).toLocaleString();
+        const parts = [
+          `--${boundary}\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n${payloadJson}\r\n`,
+          `--${boundary}\r\nContent-Disposition: form-data; name="files[0]"; filename="ticket-${req.params.id}-transcript.html"\r\nContent-Type: text/html\r\n\r\n`,
+        ];
+        const body = Buffer.concat([
+          Buffer.from(parts[0], 'utf-8'),
+          Buffer.from(parts[1], 'utf-8'),
+          fileBuffer,
+          Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8'),
+        ]);
 
-          await send({
-            embeds: [{
-              author: {
-                name: `${m.sender_username} ${tag}`,
-                icon_url: avatarUrl || undefined,
-              },
-              description: m.body.length > 4000 ? m.body.slice(0, 4000) + '...' : m.body,
-              color: roleColor,
-              footer: { text: time },
-            }],
-          });
-        }
-
-        // Closing divider
-        await send({
-          embeds: [{
-            description: `── End of Transcript ── **Ticket #${req.params.id}** ── ${msgCount} message${msgCount !== 1 ? 's' : ''} ──`,
-            color: 0xc01a2a,
-          }],
+        await fetch(`https://discord.com/api/v10/channels/${transcriptChannel}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bot ${botToken}`,
+            'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          },
+          body,
         });
       } catch (whErr) { console.error('Ticket transcript failed:', whErr); }
     }
@@ -523,6 +555,33 @@ ticketRouter.patch('/:id/reopen', requireAuth, async (req, res) => {
       .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
       .where('tickets.id', req.params.id).first();
     broadcast(req.app, 'update_ticket', { ticket: updated, sender_sid: req.sessionID });
+
+    // ── Log reopen to transcript channel ─────────────────────────────────────
+    const transcriptChannel = process.env.TICKET_TRANSCRIPT_CHANNEL_ID;
+    const botToken = process.env.DISCORD_BOT_TOKEN;
+    if (transcriptChannel && botToken) {
+      try {
+        const fetch = require('node-fetch');
+        const staffUser = await db('users').where('id', user.id).first();
+        const staffAvatar = staffUser?.avatar && staffUser?.discord_id
+          ? `https://cdn.discordapp.com/avatars/${staffUser.discord_id}/${staffUser.avatar}.png?size=128` : null;
+        await fetch(`https://discord.com/api/v10/channels/${transcriptChannel}/messages`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bot ${botToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            embeds: [{
+              author: { name: `${user.username} reopened a ticket`, icon_url: staffAvatar || undefined },
+              title: `🔓 Ticket #${req.params.id} Reopened`,
+              description: `**${ticket.subject}**\nOriginally opened by **${updated.user_username || ticket.user_id}**`,
+              color: 0x4a9e4a,
+              footer: { text: 'Crimson Creek RP — Ticket System' },
+              timestamp: new Date().toISOString(),
+            }],
+          }),
+        });
+      } catch (e) { console.error('Reopen transcript log failed:', e); }
+    }
+
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
