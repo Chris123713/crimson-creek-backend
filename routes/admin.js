@@ -445,15 +445,15 @@ adminRouter.post('/assign-settler-role', requireAuth, requirePermission('canView
   }
 });
 
-// PATCH /api/tickets/:id/reopen
+// PATCH /api/tickets/:id/reopen — staff only
 ticketRouter.patch('/:id/reopen', requireAuth, async (req, res) => {
   try {
     const user = req.session.user;
+    if (!user.permissions.canViewStaffPanel) {
+      return res.status(403).json({ error: 'Only staff can reopen tickets' });
+    }
     const ticket = await db('tickets').where('id', req.params.id).first();
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
     await db('tickets').where('id', req.params.id).update({ status: 'open', updated_at: new Date().toISOString() });
     await logAction('ticket_reopened', user.username, req.params.id);
     const updated = await db('tickets')
