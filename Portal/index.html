@@ -944,6 +944,7 @@ function Portal({ user, onLogout }) {
 
   const NAV=[
     { id:"dashboard",    label:"Dashboard",    icon:"🏠" },
+    { id:"lore",         label:"Lore",         icon:"📜" },
     { id:"rules",        label:"Rules",        icon:"☰" },
     ...(isWhitelistedOrAbove ? [{ id:"appeals", label:"Ban Appeals", icon:"⚖️" }] : []),
     ...(isWhitelistedOrAbove ? [{ id:"applications", label:"Applications", icon:"📄" }] : []),
@@ -1127,6 +1128,7 @@ function Portal({ user, onLogout }) {
         {/* Main content */}
         <div style={{ flex:1, overflow:"auto", background:"rgba(0,0,0,0.55)" }}>
           {page==="dashboard"    && <DashPage    user={user} perms={perms} sub={sub} setPage={setPage} announcements={announcements} setAnnouncements={setAnnouncements}/>}
+          {page==="lore"         && <LorePage/>}
           {page==="rules"        && <RulesPage rules={rules}/>}
           {page==="staff"        && <StaffRosterPage user={user}/>}
           {page==="appeals"      && <AppealsPage  user={user} perms={perms} appeals={appeals} setAppeals={setAppeals} showToast={showToast} logAction={logAction} pushNotif={pushNotif}/>}
@@ -1235,6 +1237,91 @@ function DashPage({ user, perms, sub, setPage, announcements, setAnnouncements }
         )}
       </DecorCard>
 
+    </div>
+  );
+}
+
+// ─── LORE PAGE ────────────────────────────────────────────────────────────────
+function LorePage() {
+  const sectionStyle = { marginBottom: 32 };
+  const paragraphStyle = { fontSize: 14, color: T.muted, lineHeight: 2, fontFamily: FB, marginBottom: 16, textAlign: "center" };
+  const headingStyle = { fontFamily: FS, fontSize: 20, fontWeight: 700, color: T.amber, textAlign: "center", marginBottom: 16, letterSpacing: 1 };
+
+  return (
+    <div style={{ padding: "28px 32px", maxWidth: 860, margin: "0 auto" }}>
+      <div style={{ fontFamily: FS, fontSize: 28, fontWeight: 700, letterSpacing: 1, marginBottom: 4, textAlign: "center" }}>THE LORE OF CRIMSON CREEK</div>
+      <div style={{ fontSize: 14, color: T.muted, marginBottom: 32, fontFamily: FB, textAlign: "center" }}>Issued by the Crimson Creek Government</div>
+
+      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "32px 28px" }}>
+
+        <div style={sectionStyle}>
+          <p style={paragraphStyle}>
+            Crimson Creek was once a jewel of the frontier. A land of thick forests and clear rivers, of bustling towns, and honest work. Lawmen earned respect, blacksmiths and trust in equal measure and the community thrived on grit, pride, and the rhythm of a simpler life.
+          </p>
+          <p style={paragraphStyle}>
+            But time, as it always does, began to chip away at the foundation.
+          </p>
+        </div>
+
+        <div style={sectionStyle}>
+          <p style={paragraphStyle}>
+            Greed crept in like a shadow just out of sight. Money bought silence, lawmen bent for the right price, and even the oaths of doctors cracked beneath temptation. Crooked hands thrived while the honest struggled to endure. The land once a place of promise began to feel burdened by something unsettling, heavy, and unforgiving.
+          </p>
+        </div>
+
+        <div style={sectionStyle}>
+          <div style={headingStyle}>The Sickness</div>
+          <p style={paragraphStyle}>
+            Then came the sickness... It began as a cough, harmless enough. But within days, lungs filled with fire and breath turned ragged. Families watched helplessly as their strong were reduced to wheezing shadows, and the weak faded altogether. The streets filled with the sound of hacking and cries for help that never came. Some of the stricken wandered in fever, delirious, half alive and half gone, frightening even those who loved them. Fear became its own plague.
+          </p>
+        </div>
+
+        <div style={sectionStyle}>
+          <div style={headingStyle}>The Collapse</div>
+          <p style={paragraphStyle}>
+            The collapse followed swift. Trade halted. The economy buckled. Jobs vanished and hunger set in like a curse, desperation spread fast. Storefronts were smashed, neighbors turned on each other, and fires lit the night sky. Entire blocks were torched in violence and despair. Crimson Creek bled itself dry in its panic.
+          </p>
+        </div>
+
+        <div style={sectionStyle}>
+          <div style={headingStyle}>The Crossing</div>
+          <p style={paragraphStyle}>
+            And so the boats became salvation... At the docks people loaded what little they could carry, fighting tooth and nail for passage to Guarma. The crossings were brutal, anyone coughing was cast aside, cut down or left to die on the piers. The sick did not come. Only the strong, the desperate, and the merciless climbed aboard. The waters between Guarma and the mainland came to be feared and whispered about...
+          </p>
+          <p style={paragraphStyle}>
+            In time, those waters earned a name: <span style={{ color: T.amber, fontWeight: 700, fontFamily: FS }}>The In Between.</span>
+          </p>
+        </div>
+
+        <div style={sectionStyle}>
+          <p style={paragraphStyle}>
+            They were more than a stretch of sea — they were the divide between the life left behind and the uncertain future ahead. To some the In Between was a graveyard, where the unlucky and unwanted were cast into the depths. To others it was a purgatory, a place where hope and despair collided on the open tide. For those who survived it, it was a memory never shaken.
+          </p>
+        </div>
+
+        <div style={sectionStyle}>
+          <div style={headingStyle}>Guarma</div>
+          <p style={paragraphStyle}>
+            Guarma became a refuge. Those who escaped Crimson carved out a new life on its shores. They built, they fought, and they made the island their own. They hardened themselves, for softness had no place in survival. The old songs of Crimson Creek faded into something harsher, something born of exile.
+          </p>
+        </div>
+
+        <div style={sectionStyle}>
+          <div style={headingStyle}>The Return</div>
+          <p style={paragraphStyle}>
+            Back in Crimson Creek silence took hold, the sickness ran its course. The fires cooled, ash drifted where laughter once rang and buildings stood hollow and empty. For years the land was left to ghosts, disease and memory.
+          </p>
+          <p style={paragraphStyle}>
+            Eventually... whispers spread that the danger had passed, that the sickness had burned itself out. Tentatively people began to return to the ruins of their old lives, to echoes of what was lost. They crossed The In Between once more, but this time not fleeing, but as pilgrims reclaiming. Still, none crossed without remembering the cost, or without glancing at those waters where so much had been lost.
+          </p>
+        </div>
+
+        <div style={{ borderTop: `1px solid ${T.border}`, marginTop: 32, paddingTop: 24, textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: T.muted, letterSpacing: 2, fontFamily: FS }}>ISSUED BY</div>
+          <div style={{ fontFamily: FS, fontSize: 16, color: T.amber, marginTop: 6, fontStyle: "italic" }}>Crimson Creek Government</div>
+        </div>
+
+      </div>
     </div>
   );
 }
