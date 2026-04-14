@@ -134,7 +134,57 @@ app.get('/cleanup-once', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n🔥 Crimson Creek Portal Backend running on port ${PORT}`);
   console.log(`🔗 txAdmin webhook URL: ${process.env.BASE_URL || 'http://localhost:3001'}/webhook/txadmin\n`);
+
+  // ── Sync existing Discord announcements into the site ────────────────────
+  const channelId = process.env.ANNOUNCEMENT_CHANNEL_ID;
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (channelId && botToken) {
+    try {
+      const fetch = require('node-fetch');
+      const { db } = require('./db/setup');
+
+      // Fetch up to 100 recent messages from the announcements channel
+      const res = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages?limit=100`, {
+        headers: { 'Authorization': `Bot ${botToken}` },
+      });
+      if (!res.ok) throw new Error(`Discord API ${res.status}`);
+      const messages = await res.json();
+
+      let imported = 0;
+      for (const msg of messages) {
+        // Skip if already synced
+        const existing = await db('announcements').where('discord_message_id', msg.id).first();
+        if (existing) continue;
+
+        // Extract title/body from embeds or message content
+        let title, body;
+        if (msg.embeds?.length > 0 && msg.embeds[0].title) {
+          title = msg.embeds[0].title.replace(/^📢\s*/, '');
+          body = msg.embeds[0].description || '';
+        } else if (msg.content?.trim()) {
+          const lines = msg.content.split('\n');
+          title = lines[0].slice(0, 200) || 'Announcement';
+          body = lines.slice(1).join('\n').trim() || lines[0];
+        } else {
+          continue; // skip empty messages / images only
+        }
+
+        await db('announcements').insert({
+          title,
+          body,
+          pinned: msg.pinned || false,
+          author: msg.author?.username || 'Discord',
+          discord_message_id: msg.id,
+          created_at: new Date(msg.timestamp).toISOString(),
+        });
+        imported++;
+      }
+      if (imported > 0) console.log(`📢 Imported ${imported} announcements from Discord`);
+    } catch (e) {
+      console.error('Failed to sync Discord announcements:', e.message);
+    }
+  }
 });
