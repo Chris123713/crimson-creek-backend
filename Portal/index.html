@@ -519,6 +519,31 @@ function Landing({ onShowDiscord, onViewRules }) {
           </div>
         </div>
       </div>
+
+      {/* ── Lore Teaser Section ─────────────────────────────────────────────── */}
+      <div style={{ position:"relative", padding:"80px 48px", overflow:"hidden" }}>
+        <div style={{ position:"absolute", inset:0, background:`linear-gradient(180deg, ${T.bg} 0%, rgba(15,10,6,0.95) 30%, rgba(15,10,6,0.95) 70%, ${T.bg} 100%)` }}/>
+        <div style={{ position:"absolute", inset:0, backgroundImage:`repeating-linear-gradient(45deg, ${T.amber}03 0px, ${T.amber}03 1px, transparent 1px, transparent 16px)` }}/>
+        <div style={{ position:"relative", maxWidth:720, margin:"0 auto", textAlign:"center" }}>
+          <div style={{ fontSize:10, color:T.amber, letterSpacing:6, fontWeight:700, marginBottom:12 }}>THE STORY BEHIND THE SERVER</div>
+          <div style={{ fontFamily:FS, fontSize:"clamp(28px,4vw,42px)", fontWeight:700, letterSpacing:2, lineHeight:1.1, marginBottom:8 }}>
+            EVERY FRONTIER HAS <span style={{ color:T.amber }}>A HISTORY.</span>
+          </div>
+          <div style={{ width:60, height:2, background:`linear-gradient(to right, transparent, ${T.amber}, transparent)`, margin:"16px auto 24px" }}/>
+          <p style={{ fontSize:15, color:T.muted, lineHeight:1.9, fontFamily:FB, maxWidth:580, margin:"0 auto 12px", fontStyle:"italic" }}>
+            "Crimson Creek was once a jewel of the frontier. A land of thick forests and clear rivers, of bustling towns, and honest work..."
+          </p>
+          <p style={{ fontSize:14, color:T.muted+"aa", lineHeight:1.9, fontFamily:FB, maxWidth:540, margin:"0 auto 32px" }}>
+            Then came the sickness, the collapse, and the desperate crossing to Guarma. Now, the survivors return to rebuild what was lost. This is the world you step into.
+          </p>
+          <button onClick={onShowDiscord} style={{ background:"transparent", border:`1px solid ${T.amber}60`, color:T.amber, padding:"13px 32px", borderRadius:6, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:FS, letterSpacing:2, textTransform:"uppercase", transition:"all 0.2s" }}
+            onMouseEnter={e=>{e.target.style.background=T.amber+"18";e.target.style.borderColor=T.amber}}
+            onMouseLeave={e=>{e.target.style.background="transparent";e.target.style.borderColor=T.amber+"60"}}>
+            Join & Read the Full Lore
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 }
