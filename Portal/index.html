@@ -185,6 +185,15 @@ const SERVERS = [
 ];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
+// Strip raw Discord mention IDs from text (e.g. <@123456> → @mention)
+function cleanMentions(text) {
+  if (!text) return text;
+  return text
+    .replace(/<@!?(\d+)>/g, '@mention')
+    .replace(/<@&(\d+)>/g, '@role')
+    .replace(/<#(\d+)>/g, '#channel');
+}
+
 function fmtCountdown(ms) {
   const s = Math.floor(ms/1000);
   const m = Math.floor(s/60);
@@ -1214,11 +1223,11 @@ function DashPage({ user, perms, sub, setPage, announcements, setAnnouncements }
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6, flexWrap:"wrap", gap:8 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                     {a.pinned && <span style={{ fontSize:10, background:T.amberBg, color:T.amber, border:`1px solid ${T.amber}40`, padding:"2px 8px", borderRadius:3, fontWeight:700, fontFamily:FS, letterSpacing:0.5 }}>📌 PINNED</span>}
-                    <div style={{ fontFamily:FS, fontSize:14, fontWeight:600 }}>{a.title}</div>
+                    <div style={{ fontFamily:FS, fontSize:14, fontWeight:600 }}>{cleanMentions(a.title)}</div>
                   </div>
                   <div style={{ fontSize:11, color:T.muted }}>{a.date} · <span style={{ color:T.amber }}>{a.author}</span></div>
                 </div>
-                <div style={{ fontSize:13, color:T.muted, lineHeight:1.75, fontFamily:FB }}>{a.body}</div>
+                <div style={{ fontSize:13, color:T.muted, lineHeight:1.75, fontFamily:FB }}>{cleanMentions(a.body)}</div>
               </div>
             ))}
           </div>
@@ -2871,9 +2880,9 @@ function StaffPanel({ user, perms, appeals, setAppeals, apps, setApps, tickets, 
                   <div>
                     <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:4 }}>
                       {a.pinned && <span style={{ fontSize:10, background:T.amberBg, color:T.amber, border:`1px solid ${T.amber}40`, padding:"1px 6px", borderRadius:3, fontWeight:700 }}>PINNED</span>}
-                      <span style={{ fontWeight:700, fontSize:13 }}>{a.title}</span>
+                      <span style={{ fontWeight:700, fontSize:13 }}>{cleanMentions(a.title)}</span>
                     </div>
-                    <div style={{ fontSize:12, color:T.muted, fontFamily:FB }}>{a.body}</div>
+                    <div style={{ fontSize:12, color:T.muted, fontFamily:FB }}>{cleanMentions(a.body)}</div>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
                     <div style={{ fontSize:11, color:T.muted }}>{a.date} · {a.author}</div>
