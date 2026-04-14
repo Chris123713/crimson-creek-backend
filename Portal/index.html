@@ -1777,6 +1777,8 @@ function SupportPage({ user, perms, tickets, setTickets, showToast, username }) 
   }
 
   function closeTicket(ticketId) {
+    const backendId = tickets.find(t=>t.id===ticketId)?._id || ticketId;
+    fetch(`${BACKEND_URL}/api/tickets/${backendId}/close`,{ method:"PATCH", credentials:"include" }).catch(()=>{});
     setTickets(p=>p.map(t=>t.id===ticketId?{...t,status:"closed"}:t));
     setSelectedTicket(prev=>prev?{...prev,status:"closed"}:null);
     showToast("Ticket closed.",T.muted);
