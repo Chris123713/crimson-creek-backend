@@ -1784,12 +1784,6 @@ function SupportPage({ user, perms, tickets, setTickets, showToast, username }) 
     showToast("Ticket closed.",T.muted);
   }
 
-  function reopenTicket(ticketId) {
-    setTickets(p=>p.map(t=>t.id===ticketId?{...t,status:"open"}:t));
-    setSelectedTicket(prev=>prev?{...prev,status:"open"}:null);
-    showToast("Ticket reopened.",T.green);
-  }
-
   const isStaff=perms.canStaff;
 
   // Thread view
@@ -1813,7 +1807,6 @@ function SupportPage({ user, perms, tickets, setTickets, showToast, username }) 
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
               <Badge label={ticket.status} color={ticket.status==="open"?T.green:T.muted}/>
               {isStaff && ticket.status==="open" && <button onClick={()=>closeTicket(ticket.id)} style={{ background:T.surface2, border:`1px solid ${T.border}`, color:T.muted, padding:"5px 12px", borderRadius:4, fontSize:11, cursor:"pointer" }}>Close ticket</button>}
-              {isStaff && ticket.status==="closed" && <button onClick={()=>reopenTicket(ticket.id)} style={{ background:T.greenBg, border:`1px solid ${T.green}40`, color:T.greenLight, padding:"5px 12px", borderRadius:4, fontSize:11, fontWeight:600, cursor:"pointer" }}>Reopen</button>}
             </div>
           </div>
         </div>
