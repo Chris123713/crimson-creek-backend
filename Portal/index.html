@@ -2375,7 +2375,7 @@ function StaffPanel({ user, perms, appeals, setAppeals, apps, setApps, tickets, 
   const [deleteConfirm,setDeleteConfirm]=useState(null); // { type:'app'|'appeal'|'ticket', id, label }
   const [logSearch,setLogSearch]=useState("");
   const [logPage,setLogPage]=useState(1);
-  const [newAnnouncement,setNewAnnouncement]=useState({ title:"", body:"", pinned:false });
+  const [newAnnouncement,setNewAnnouncement]=useState({ title:"", body:"", pinned:false, pingEveryone:false });
   const [newBan,setNewBan]=useState({ player:"", discord:"", steam:"", license:"", reason:"", permanent:true });
   const [txAdminStatus, setTxAdminStatus]=useState("unknown");
   const [reviewNote,setReviewNote]=useState({});
@@ -2496,7 +2496,7 @@ function StaffPanel({ user, perms, appeals, setAppeals, apps, setApps, tickets, 
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(a => {
         setAnnouncements(prev => [a, ...prev.filter(x => x.id !== a.id)]);
-        setNewAnnouncement({ title:"", body:"", pinned:false });
+        setNewAnnouncement({ title:"", body:"", pinned:false, pingEveryone:false });
         logAction(`${user.username} posted announcement: "${titleCopy}"`);
         pushNotif("announce", `📢 New announcement: ${titleCopy}`, bodyCopy.slice(0,60)+"...", T.amber);
         showToast("Announcement posted!", T.green);
@@ -2851,10 +2851,16 @@ function StaffPanel({ user, perms, appeals, setAppeals, apps, setApps, tickets, 
               <textarea rows={3} value={newAnnouncement.body} onChange={e=>setNewAnnouncement(p=>({...p,body:e.target.value}))} placeholder="Announcement content..." style={{ width:"100%", background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"9px 12px", borderRadius:5, fontSize:13, outline:"none", resize:"vertical", fontFamily:FB, boxSizing:"border-box" }}/>
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:T.muted, cursor:"pointer" }}>
-                <input type="checkbox" checked={newAnnouncement.pinned} onChange={e=>setNewAnnouncement(p=>({...p,pinned:e.target.checked}))} style={{ cursor:"pointer" }}/>
-                Pin this announcement
-              </label>
+              <div style={{ display:"flex", gap:16 }}>
+                <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:T.muted, cursor:"pointer" }}>
+                  <input type="checkbox" checked={newAnnouncement.pinned} onChange={e=>setNewAnnouncement(p=>({...p,pinned:e.target.checked}))} style={{ cursor:"pointer" }}/>
+                  Pin this announcement
+                </label>
+                <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:T.amber, cursor:"pointer" }}>
+                  <input type="checkbox" checked={newAnnouncement.pingEveryone} onChange={e=>setNewAnnouncement(p=>({...p,pingEveryone:e.target.checked}))} style={{ cursor:"pointer" }}/>
+                  Ping @everyone
+                </label>
+              </div>
               <button onClick={postAnnouncement} style={{ background:T.amber, color:"#fff", border:"none", padding:"9px 20px", borderRadius:5, fontSize:13, fontWeight:700, cursor:"pointer" }}>Post Announcement</button>
             </div>
           </div>

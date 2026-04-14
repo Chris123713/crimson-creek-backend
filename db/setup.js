@@ -199,6 +199,15 @@ async function setupDatabase() {
     }
   }
 
+  // Add discord_message_id to announcements for two-way sync
+  {
+    const has = await knex.schema.hasColumn('announcements', 'discord_message_id');
+    if (!has) {
+      await knex.schema.table('announcements', t => t.string('discord_message_id'));
+      console.log('  ↳ Added column announcements.discord_message_id');
+    }
+  }
+
   // Fix sessions table — if it has 'expired' column (old SQLite schema) drop it
   // so connect-pg-simple can recreate it correctly with 'expire' column
   if (process.env.DATABASE_URL) {

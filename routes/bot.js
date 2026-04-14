@@ -182,4 +182,34 @@ router.patch('/applications/:id', requireBotAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── POST /api/bot/announcements — Discord bot posts an announcement to the site
+router.post('/announcements', requireBotAuth, async (req, res) => {
+  try {
+    const { title, body, author, discord_message_id } = req.body;
+    if (!title || !body) return res.status(400).json({ error: 'Title and body required' });
+
+    // Skip if this message was originally posted from the site (avoid loop)
+    if (discord_message_id) {
+      const existing = await db('announcements').where('discord_message_id', discord_message_id).first();
+      if (existing) return res.json({ skipped: true, reason: 'Already synced from site' });
+    }
+
+    const [inserted] = await db('announcements').insert({
+      title,
+      body,
+      pinned: false,
+      author: author || 'Discord',
+      discord_message_id: discord_message_id || null,
+    }).returning('*');
+    const announcement = inserted?.id ? inserted : await db('announcements').where('id', inserted).first();
+    await logAction('announcement_posted', author || 'Discord', announcement.id, { title, via: 'discord_bot' });
+
+    // Broadcast to site via SSE
+    const { broadcast } = require('./admin');
+    broadcast(req.app, 'new_announcement', announcement);
+
+    res.json(announcement);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

@@ -510,7 +510,7 @@ adminRouter.get('/announcements', async (req, res) => {
 
 adminRouter.post('/announcements', requireAuth, requirePermission('canPostAnnouncements'), async (req, res) => {
   try {
-    const { title, body, pinned } = req.body;
+    const { title, body, pinned, pingEveryone } = req.body;
     if (!title || !body) return res.status(400).json({ error: 'Title and body required' });
     const [inserted] = await db('announcements').insert({
       title, body, pinned: pinned || false, author: req.session.user.username,
@@ -518,6 +518,36 @@ adminRouter.post('/announcements', requireAuth, requirePermission('canPostAnnoun
     const announcement = inserted?.id ? inserted : await db('announcements').where('id', inserted).first();
     await logAction('announcement_posted', req.session.user.username, announcement.id, { title });
     broadcast(req.app, 'new_announcement', announcement);
+
+    // ── Post to Discord announcements channel ────────────────────────────────
+    const channelId = process.env.ANNOUNCEMENT_CHANNEL_ID;
+    const botToken = process.env.DISCORD_BOT_TOKEN;
+    if (channelId && botToken) {
+      try {
+        const fetch = require('node-fetch');
+        const discordRes = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bot ${botToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: pingEveryone ? '@everyone' : undefined,
+            embeds: [{
+              title: `📢 ${title}`,
+              description: body.length > 4000 ? body.slice(0, 4000) + '...' : body,
+              color: 0xc01a2a,
+              footer: { text: `Posted by ${req.session.user.username} via Crimson Creek Portal` },
+              timestamp: new Date().toISOString(),
+            }],
+            allowed_mentions: { parse: pingEveryone ? ['everyone'] : [] },
+          }),
+        });
+        const discordMsg = await discordRes.json();
+        // Store the Discord message ID so we can avoid re-importing it
+        if (discordMsg.id) {
+          await db('announcements').where('id', announcement.id).update({ discord_message_id: discordMsg.id });
+        }
+      } catch (e) { console.error('Failed to post announcement to Discord:', e); }
+    }
+
     res.json(announcement);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -557,4 +587,4 @@ adminRouter.get('/sse-session', requireAuth, (req, res) => {
 });
 
 
-module.exports = { ticketRouter, adminRouter };
+module.exports = { ticketRouter, adminRouter, broadcast };
