@@ -308,10 +308,10 @@ function ServerCard({ server, onStatusUpdate }) {
       fetch("https://servers-frontend.fivem.net/api/servers/single/vryq9x")
         .then(r => r.json())
         .then(data => {
-          const count = data?.Data?.clients;
-          const max = data?.Data?.sv_maxclients;
-          if (typeof count === "number") setP(count);
-          if (typeof max === "number" && max > 0) {
+          const count = parseInt(data?.Data?.clients, 10) || 0;
+          const max = parseInt(data?.Data?.sv_maxclients, 10);
+          setP(count);
+          if (max > 0) {
             setMaxP(max);
             if (onStatusUpdate) onStatusUpdate({ currentPlayers: count, maxPlayers: max });
           }
@@ -457,8 +457,8 @@ function Landing({ onShowDiscord, onViewRules }) {
     fetch("https://servers-frontend.fivem.net/api/servers/single/vryq9x")
       .then(r => r.json())
       .then(data => {
-        const max = data?.Data?.sv_maxclients;
-        if (typeof max === "number" && max > 0) setMaxSlots(String(max));
+        const max = parseInt(data?.Data?.sv_maxclients, 10);
+        if (max > 0) setMaxSlots(String(max));
       })
       .catch(() => {});
   }, []);
