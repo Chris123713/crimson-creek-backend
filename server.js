@@ -185,6 +185,8 @@ app.listen(PORT, async () => {
         text = text.replace(/<@&(\d+)>/g, (_, id) => `@${roleCache[id] || 'role'}`);
         // Channel mentions: <#123>
         text = text.replace(/<#(\d+)>/g, (_, id) => `#${channelCache[id] || 'channel'}`);
+        // Custom emojis: <:name:id> or <a:name:id> → :name:
+        text = text.replace(/<a?:(\w+):\d+>/g, ':$1:');
         return text;
       }
 
@@ -197,9 +199,16 @@ app.listen(PORT, async () => {
 
       let imported = 0;
       for (const msg of messages) {
-        // Skip if already synced
+        // If already synced but still has raw Discord IDs, delete and re-import
         const existing = await db('announcements').where('discord_message_id', msg.id).first();
-        if (existing) continue;
+        if (existing) {
+          const hasRawDiscord = (t) => /<[@#][!&]?\d+>/.test(t) || /<a?:\w+:\d+>/.test(t);
+          if (hasRawDiscord(existing.title || '') || hasRawDiscord(existing.body || '')) {
+            await db('announcements').where('id', existing.id).delete();
+          } else {
+            continue;
+          }
+        }
 
         // Extract title/body from embeds or message content
         let title, body;

@@ -185,13 +185,14 @@ const SERVERS = [
 ];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-// Strip raw Discord mention IDs from text (e.g. <@123456> → @mention)
+// Strip raw Discord formatting from text
 function cleanMentions(text) {
   if (!text) return text;
   return text
     .replace(/<@!?(\d+)>/g, '@mention')
     .replace(/<@&(\d+)>/g, '@role')
-    .replace(/<#(\d+)>/g, '#channel');
+    .replace(/<#(\d+)>/g, '#channel')
+    .replace(/<a?:(\w+):\d+>/g, ':$1:');
 }
 
 function fmtCountdown(ms) {
