@@ -75,6 +75,39 @@ app.post('/webhook/txadmin', (req, res) => {
   txAdminRouter(req, res);
 });
 
+// ─── Server Status (live from RedM) ──────────────────────────────────────────
+app.get('/api/server/status', async (req, res) => {
+  const fetch = require('node-fetch');
+  const serverIp = process.env.SERVER_IP;
+  if (!serverIp) return res.status(500).json({ error: 'SERVER_IP not configured' });
+
+  try {
+    const [infoRes, playersRes] = await Promise.all([
+      fetch(`http://${serverIp}/info.json`, { timeout: 5000 }),
+      fetch(`http://${serverIp}/players.json`, { timeout: 5000 }),
+    ]);
+
+    const info = await infoRes.json();
+    const players = await playersRes.json();
+
+    res.json({
+      online: true,
+      serverName: info.vars?.sv_projectName || info.vars?.sv_hostname || 'Crimson Creek RP',
+      currentPlayers: players.length,
+      maxPlayers: parseInt(info.vars?.sv_maxClients, 10) || 0,
+      players: players.map(p => ({ name: p.name, id: p.id, ping: p.ping })),
+    });
+  } catch {
+    res.json({
+      online: false,
+      serverName: 'Crimson Creek RP',
+      currentPlayers: 0,
+      maxPlayers: 0,
+      players: [],
+    });
+  }
+});
+
 // ─── HEALTH ───────────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
