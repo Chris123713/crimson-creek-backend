@@ -141,10 +141,52 @@ app.listen(PORT, async () => {
   // ── Sync existing Discord announcements into the site ────────────────────
   const channelId = process.env.ANNOUNCEMENT_CHANNEL_ID;
   const botToken = process.env.DISCORD_BOT_TOKEN;
+  const guildId = process.env.DISCORD_GUILD_ID;
   if (channelId && botToken) {
     try {
       const fetch = require('node-fetch');
       const { db } = require('./db/setup');
+
+      // Pre-fetch guild members for resolving mentions
+      let memberCache = {};
+      let roleCache = {};
+      let channelCache = {};
+      if (guildId) {
+        try {
+          const membersRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members?limit=1000`, {
+            headers: { 'Authorization': `Bot ${botToken}` },
+          });
+          if (membersRes.ok) {
+            const members = await membersRes.json();
+            for (const m of members) memberCache[m.user.id] = m.nick || m.user.global_name || m.user.username;
+          }
+          const rolesRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
+            headers: { 'Authorization': `Bot ${botToken}` },
+          });
+          if (rolesRes.ok) {
+            const roles = await rolesRes.json();
+            for (const r of roles) roleCache[r.id] = r.name;
+          }
+          const channelsRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+            headers: { 'Authorization': `Bot ${botToken}` },
+          });
+          if (channelsRes.ok) {
+            const channels = await channelsRes.json();
+            for (const c of channels) channelCache[c.id] = c.name;
+          }
+        } catch (_) {}
+      }
+
+      function resolveMentions(text) {
+        if (!text) return text;
+        // User mentions: <@123> or <@!123>
+        text = text.replace(/<@!?(\d+)>/g, (_, id) => `@${memberCache[id] || 'user'}`);
+        // Role mentions: <@&123>
+        text = text.replace(/<@&(\d+)>/g, (_, id) => `@${roleCache[id] || 'role'}`);
+        // Channel mentions: <#123>
+        text = text.replace(/<#(\d+)>/g, (_, id) => `#${channelCache[id] || 'channel'}`);
+        return text;
+      }
 
       // Fetch up to 100 recent messages from the announcements channel
       const res = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages?limit=100`, {
@@ -171,6 +213,10 @@ app.listen(PORT, async () => {
         } else {
           continue; // skip empty messages / images only
         }
+
+        // Resolve Discord mentions to readable names
+        title = resolveMentions(title);
+        body = resolveMentions(body);
 
         await db('announcements').insert({
           title,
