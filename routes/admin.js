@@ -701,23 +701,35 @@ adminRouter.post('/spotlight', requireAuth, requirePermission('canPostAnnounceme
     // Check if URL is an embeddable video platform
     const ytMatch = media_url && media_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]+)/);
     const streamableMatch = media_url && media_url.match(/streamable\.com\/(\w+)/);
+    const medalMatch = media_url && media_url.match(/medal\.tv\/(?:games\/[^/]+\/)?clips\/([^/?]+)/);
+    const tiktokMatch = media_url && media_url.match(/tiktok\.com\/@[^/]+\/video\/(\d+)/);
+    const twitchMatch = media_url && media_url.match(/clips\.twitch\.tv\/(\w+)|twitch\.tv\/\w+\/clip\/(\w+)/);
 
     if (ytMatch) {
-      // YouTube — store as embed type
       finalMediaType = 'youtube';
-      // media_url stays as-is, we'll extract the ID on the frontend
     } else if (streamableMatch) {
       finalMediaType = 'streamable';
+    } else if (medalMatch) {
+      finalMediaType = 'medal';
+    } else if (tiktokMatch) {
+      finalMediaType = 'tiktok';
+    } else if (twitchMatch) {
+      finalMediaType = 'twitch';
     } else if (!finalMediaData && media_url) {
       // Regular URL (Discord CDN, Imgur, etc.) — download and store as base64
       try {
         const fetch = require('node-fetch');
-        const imgRes = await fetch(media_url, { timeout: 15000 });
+        const imgRes = await fetch(media_url, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0' } });
         if (imgRes.ok) {
           const contentType = imgRes.headers.get('content-type') || '';
-          const buffer = await imgRes.buffer();
-          finalMediaData = `data:${contentType};base64,${buffer.toString('base64')}`;
-          if (contentType.startsWith('video/')) finalMediaType = 'video';
+          if (contentType.startsWith('image/') || contentType.startsWith('video/')) {
+            const buffer = await imgRes.buffer();
+            finalMediaData = `data:${contentType};base64,${buffer.toString('base64')}`;
+            if (contentType.startsWith('video/')) finalMediaType = 'video';
+          } else {
+            // Not a direct media file — treat as generic embed
+            finalMediaType = 'embed';
+          }
         }
       } catch (e) { console.error('Failed to download spotlight media:', e.message); }
     }

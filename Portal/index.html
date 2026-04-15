@@ -1423,7 +1423,9 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
             const mediaSrc = p.media_data || p.media_url;
             const ytId = p.media_url && p.media_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]+)/);
             const streamableId = p.media_url && p.media_url.match(/streamable\.com\/(\w+)/);
-            const isEmbed = p.media_type === "youtube" || p.media_type === "streamable";
+            const medalId = p.media_url && p.media_url.match(/medal\.tv\/(?:games\/[^/]+\/)?clips\/([^/?]+)/);
+            const twitchId = p.media_url && p.media_url.match(/clips\.twitch\.tv\/(\w+)|twitch\.tv\/\w+\/clip\/(\w+)/);
+            const isEmbed = ["youtube","streamable","medal","tiktok","twitch","embed"].includes(p.media_type);
             return (
               <div key={p.id} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, overflow:"hidden", transition:"all 0.2s", cursor:isEmbed?"default":"pointer" }}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=T.amber+"60"}
@@ -1434,6 +1436,20 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
                     <iframe src={`https://www.youtube.com/embed/${ytId[1]}`} style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>
                   ) : p.media_type === "streamable" && streamableId ? (
                     <iframe src={`https://streamable.com/e/${streamableId[1]}`} style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }} allowFullScreen/>
+                  ) : p.media_type === "medal" && medalId ? (
+                    <iframe src={`https://medal.tv/clip/${medalId[1]}/embed`} style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }} allowFullScreen/>
+                  ) : p.media_type === "twitch" && twitchId ? (
+                    <iframe src={`https://clips.twitch.tv/embed?clip=${twitchId[1]||twitchId[2]}&parent=${window.location.hostname}`} style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }} allowFullScreen/>
+                  ) : p.media_type === "tiktok" ? (
+                    <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:8 }}>
+                      <div style={{ fontSize:24 }}>🎵</div>
+                      <a href={p.media_url} target="_blank" rel="noreferrer" style={{ color:T.amber, fontSize:12, fontWeight:700 }}>Watch on TikTok</a>
+                    </div>
+                  ) : p.media_type === "embed" ? (
+                    <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:8 }}>
+                      <div style={{ fontSize:24 }}>🔗</div>
+                      <a href={p.media_url} target="_blank" rel="noreferrer" style={{ color:T.amber, fontSize:12, fontWeight:700 }}>View Content</a>
+                    </div>
                   ) : p.media_type === "video" ? (
                     <video src={mediaSrc} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} muted/>
                   ) : (
@@ -1474,15 +1490,15 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
               const src = lightbox.media_data || lightbox.media_url;
               const ytId = lightbox.media_url && lightbox.media_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]+)/);
               const streamableId = lightbox.media_url && lightbox.media_url.match(/streamable\.com\/(\w+)/);
-              if (lightbox.media_type === "youtube" && ytId) return (
-                <iframe src={`https://www.youtube.com/embed/${ytId[1]}?autoplay=1`} style={{ width:"80vw", height:"45vw", maxHeight:"85vh", borderRadius:8, border:"none" }} allow="autoplay; encrypted-media" allowFullScreen/>
-              );
-              if (lightbox.media_type === "streamable" && streamableId) return (
-                <iframe src={`https://streamable.com/e/${streamableId[1]}`} style={{ width:"80vw", height:"45vw", maxHeight:"85vh", borderRadius:8, border:"none" }} allowFullScreen/>
-              );
-              if (lightbox.media_type === "video") return (
-                <video src={src} controls autoPlay style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:8 }}/>
-              );
+              const medalId = lightbox.media_url && lightbox.media_url.match(/medal\.tv\/(?:games\/[^/]+\/)?clips\/([^/?]+)/);
+              const twitchId = lightbox.media_url && lightbox.media_url.match(/clips\.twitch\.tv\/(\w+)|twitch\.tv\/\w+\/clip\/(\w+)/);
+              const embedStyle = { width:"80vw", height:"45vw", maxHeight:"85vh", borderRadius:8, border:"none" };
+              if (lightbox.media_type === "youtube" && ytId) return <iframe src={`https://www.youtube.com/embed/${ytId[1]}?autoplay=1`} style={embedStyle} allow="autoplay; encrypted-media" allowFullScreen/>;
+              if (lightbox.media_type === "streamable" && streamableId) return <iframe src={`https://streamable.com/e/${streamableId[1]}`} style={embedStyle} allowFullScreen/>;
+              if (lightbox.media_type === "medal" && medalId) return <iframe src={`https://medal.tv/clip/${medalId[1]}/embed`} style={embedStyle} allowFullScreen/>;
+              if (lightbox.media_type === "twitch" && twitchId) return <iframe src={`https://clips.twitch.tv/embed?clip=${twitchId[1]||twitchId[2]}&parent=${window.location.hostname}`} style={embedStyle} allowFullScreen/>;
+              if (lightbox.media_type === "tiktok" || lightbox.media_type === "embed") { window.open(lightbox.media_url,"_blank"); setLightbox(null); return null; }
+              if (lightbox.media_type === "video") return <video src={src} controls autoPlay style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:8 }}/>;
               return <img src={src} alt={lightbox.title} style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:8, objectFit:"contain" }}/>;
             })()}
             <div style={{ textAlign:"center", marginTop:12 }}>
