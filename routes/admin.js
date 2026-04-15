@@ -698,7 +698,18 @@ adminRouter.post('/spotlight', requireAuth, requirePermission('canPostAnnounceme
     // If a URL was provided (e.g. Discord CDN), download it and store as base64
     let finalMediaData = media_data || null;
     let finalMediaType = media_type || 'image';
-    if (!finalMediaData && media_url) {
+    // Check if URL is an embeddable video platform
+    const ytMatch = media_url && media_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]+)/);
+    const streamableMatch = media_url && media_url.match(/streamable\.com\/(\w+)/);
+
+    if (ytMatch) {
+      // YouTube — store as embed type
+      finalMediaType = 'youtube';
+      // media_url stays as-is, we'll extract the ID on the frontend
+    } else if (streamableMatch) {
+      finalMediaType = 'streamable';
+    } else if (!finalMediaData && media_url) {
+      // Regular URL (Discord CDN, Imgur, etc.) — download and store as base64
       try {
         const fetch = require('node-fetch');
         const imgRes = await fetch(media_url, { timeout: 15000 });

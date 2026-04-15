@@ -1421,13 +1421,20 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
           {posts.map(p => {
             const tagColor = tagColors[p.tag] || T.muted;
             const mediaSrc = p.media_data || p.media_url;
+            const ytId = p.media_url && p.media_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]+)/);
+            const streamableId = p.media_url && p.media_url.match(/streamable\.com\/(\w+)/);
+            const isEmbed = p.media_type === "youtube" || p.media_type === "streamable";
             return (
-              <div key={p.id} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, overflow:"hidden", transition:"all 0.2s", cursor:"pointer" }}
+              <div key={p.id} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, overflow:"hidden", transition:"all 0.2s", cursor:isEmbed?"default":"pointer" }}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=T.amber+"60"}
                 onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
                 {/* Media */}
-                <div onClick={()=>setLightbox(p)} style={{ position:"relative", paddingTop:"75%", background:T.surface2, overflow:"hidden" }}>
-                  {p.media_type === "video" ? (
+                <div onClick={()=>!isEmbed&&setLightbox(p)} style={{ position:"relative", paddingTop:isEmbed?"56.25%":"75%", background:T.surface2, overflow:"hidden" }}>
+                  {p.media_type === "youtube" && ytId ? (
+                    <iframe src={`https://www.youtube.com/embed/${ytId[1]}`} style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>
+                  ) : p.media_type === "streamable" && streamableId ? (
+                    <iframe src={`https://streamable.com/e/${streamableId[1]}`} style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }} allowFullScreen/>
+                  ) : p.media_type === "video" ? (
                     <video src={mediaSrc} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} muted/>
                   ) : (
                     <img src={mediaSrc} alt={p.title} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} onError={e=>{e.target.style.display="none"}}/>
@@ -1463,11 +1470,21 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
         <div onClick={()=>setLightbox(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", padding:32 }}>
           <div onClick={e=>e.stopPropagation()} style={{ maxWidth:"90vw", maxHeight:"90vh", position:"relative" }}>
             <button onClick={()=>setLightbox(null)} style={{ position:"absolute", top:-40, right:0, background:"none", border:"none", color:"#fff", fontSize:24, cursor:"pointer" }}>✕</button>
-            {(() => { const src = lightbox.media_data || lightbox.media_url; return lightbox.media_type === "video" ? (
-              <video src={src} controls autoPlay style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:8 }}/>
-            ) : (
-              <img src={src} alt={lightbox.title} style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:8, objectFit:"contain" }}/>
-            ); })()}
+            {(() => {
+              const src = lightbox.media_data || lightbox.media_url;
+              const ytId = lightbox.media_url && lightbox.media_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]+)/);
+              const streamableId = lightbox.media_url && lightbox.media_url.match(/streamable\.com\/(\w+)/);
+              if (lightbox.media_type === "youtube" && ytId) return (
+                <iframe src={`https://www.youtube.com/embed/${ytId[1]}?autoplay=1`} style={{ width:"80vw", height:"45vw", maxHeight:"85vh", borderRadius:8, border:"none" }} allow="autoplay; encrypted-media" allowFullScreen/>
+              );
+              if (lightbox.media_type === "streamable" && streamableId) return (
+                <iframe src={`https://streamable.com/e/${streamableId[1]}`} style={{ width:"80vw", height:"45vw", maxHeight:"85vh", borderRadius:8, border:"none" }} allowFullScreen/>
+              );
+              if (lightbox.media_type === "video") return (
+                <video src={src} controls autoPlay style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:8 }}/>
+              );
+              return <img src={src} alt={lightbox.title} style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:8, objectFit:"contain" }}/>;
+            })()}
             <div style={{ textAlign:"center", marginTop:12 }}>
               <div style={{ fontFamily:FS, fontSize:18, fontWeight:700 }}>{lightbox.title}</div>
               {lightbox.description && <div style={{ fontSize:13, color:T.muted, fontFamily:FB, marginTop:4 }}>{lightbox.description}</div>}
