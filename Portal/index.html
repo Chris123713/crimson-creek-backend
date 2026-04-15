@@ -1375,26 +1375,30 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
             </div>
           </div>
           <div style={{ marginBottom:10 }}>
-            <div style={{ fontSize:10, color:T.muted, marginBottom:4, letterSpacing:0.5 }}>UPLOAD IMAGE OR VIDEO</div>
+            <div style={{ fontSize:10, color:T.muted, marginBottom:4, letterSpacing:0.5 }}>IMAGE OR VIDEO</div>
             <input ref={fileRef} type="file" accept="image/*,video/*" onChange={e=>handleFile(e.target.files[0])} style={{ display:"none" }}/>
-            <div onClick={()=>fileRef.current?.click()}
-              onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor=T.amber}}
-              onDragLeave={e=>{e.currentTarget.style.borderColor=T.border}}
-              onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor=T.border;handleFile(e.dataTransfer.files[0])}}
-              style={{ border:`2px dashed ${T.border}`, borderRadius:8, padding:preview?"0":"32px", textAlign:"center", cursor:"pointer", background:T.surface2, overflow:"hidden", transition:"border-color 0.2s" }}>
-              {preview ? (
-                form.media_type === "video"
-                  ? <video src={preview} style={{ width:"100%", maxHeight:220, objectFit:"cover" }} muted/>
-                  : <img src={preview} alt="Preview" style={{ width:"100%", maxHeight:220, objectFit:"cover" }}/>
-              ) : (
-                <div>
-                  <div style={{ fontSize:28, marginBottom:8, opacity:0.4 }}>+</div>
-                  <div style={{ fontSize:13, color:T.muted }}>Click to browse or drag & drop</div>
-                  <div style={{ fontSize:11, color:T.muted, marginTop:4, opacity:0.6 }}>Images & videos up to 15MB</div>
+            {preview ? (
+              <div style={{ borderRadius:8, overflow:"hidden", border:`1px solid ${T.border}`, position:"relative" }}>
+                {form.media_type === "video"
+                  ? <video src={preview} style={{ width:"100%", maxHeight:220, objectFit:"cover", display:"block" }} muted/>
+                  : <img src={preview} alt="Preview" style={{ width:"100%", maxHeight:220, objectFit:"cover", display:"block" }}/>}
+                <button onClick={()=>{setPreview(null);setForm(p=>({...p,media_data:"",media_type:"image"}));}} style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,0.7)", border:"none", color:"#fff", width:24, height:24, borderRadius:"50%", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+              </div>
+            ) : (
+              <div
+                tabIndex={0}
+                onPaste={e=>{const item=[...e.clipboardData.items].find(i=>i.type.startsWith("image/")||i.type.startsWith("video/"));if(item)handleFile(item.getAsFile());}}
+                onKeyDown={()=>{}}
+                style={{ border:`1px solid ${T.border}`, borderRadius:8, padding:"24px", textAlign:"center", background:T.surface2 }}>
+                <div style={{ fontSize:13, color:T.muted, marginBottom:10 }}>Copy an image from Discord and press <span style={{ color:T.amber, fontWeight:700 }}>Ctrl+V</span> here</div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12 }}>
+                  <div style={{ height:1, width:40, background:T.border }}/>
+                  <span style={{ fontSize:11, color:T.muted }}>or</span>
+                  <div style={{ height:1, width:40, background:T.border }}/>
                 </div>
-              )}
-            </div>
-            {preview && <button onClick={()=>{setPreview(null);setForm(p=>({...p,media_data:"",media_type:"image"}));}} style={{ background:"transparent", border:"none", color:T.red, fontSize:11, cursor:"pointer", marginTop:4 }}>Remove file</button>}
+                <button onClick={()=>fileRef.current?.click()} style={{ marginTop:10, background:"transparent", border:`1px solid ${T.border}`, color:T.muted, padding:"7px 16px", borderRadius:5, fontSize:12, cursor:"pointer" }}>Browse files</button>
+              </div>
+            )}
           </div>
           <div style={{ marginBottom:10 }}>
             <div style={{ fontSize:10, color:T.muted, marginBottom:4, letterSpacing:0.5 }}>DESCRIPTION (optional)</div>
