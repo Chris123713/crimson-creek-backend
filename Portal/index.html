@@ -1293,6 +1293,17 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
   const fileRef = useRef(null);
   const canPost = perms.canAnnounce;
 
+  // Global paste listener — Ctrl+V anywhere when form is open
+  useEffect(() => {
+    if (!showForm) return;
+    function onPaste(e) {
+      const item = [...e.clipboardData.items].find(i => i.type.startsWith("image/") || i.type.startsWith("video/"));
+      if (item) { e.preventDefault(); handleFile(item.getAsFile()); }
+    }
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [showForm]);
+
   function handleFile(file) {
     if (!file) return;
     const isVideo = file.type.startsWith("video/");
@@ -1309,7 +1320,7 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
   }
 
   function submitPost() {
-    if (!form.title || !form.media_data) { showToast("Title and media file required.", T.red); return; }
+    if (!form.title || (!form.media_data && !form.media_url)) { showToast("Title and an image/video required.", T.red); return; }
     setUploading(true);
     fetch(`${BACKEND_URL}/api/admin/spotlight`, {
       method:"POST", credentials:"include",
@@ -1377,26 +1388,16 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
           <div style={{ marginBottom:10 }}>
             <div style={{ fontSize:10, color:T.muted, marginBottom:4, letterSpacing:0.5 }}>IMAGE OR VIDEO</div>
             <input ref={fileRef} type="file" accept="image/*,video/*" onChange={e=>handleFile(e.target.files[0])} style={{ display:"none" }}/>
-            {preview ? (
+            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+              <input value={form.media_url||""} onChange={e=>setForm(p=>({...p,media_url:e.target.value}))} placeholder="Paste a Discord or image URL here..." style={{ flex:1, background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"9px 12px", borderRadius:5, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:FU }}/>
+              <button onClick={()=>fileRef.current?.click()} style={{ background:T.surface2, border:`1px solid ${T.border}`, color:T.muted, padding:"9px 14px", borderRadius:5, fontSize:12, cursor:"pointer", whiteSpace:"nowrap" }}>Browse file</button>
+            </div>
+            {preview && (
               <div style={{ borderRadius:8, overflow:"hidden", border:`1px solid ${T.border}`, position:"relative" }}>
                 {form.media_type === "video"
                   ? <video src={preview} style={{ width:"100%", maxHeight:220, objectFit:"cover", display:"block" }} muted/>
                   : <img src={preview} alt="Preview" style={{ width:"100%", maxHeight:220, objectFit:"cover", display:"block" }}/>}
-                <button onClick={()=>{setPreview(null);setForm(p=>({...p,media_data:"",media_type:"image"}));}} style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,0.7)", border:"none", color:"#fff", width:24, height:24, borderRadius:"50%", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
-              </div>
-            ) : (
-              <div
-                tabIndex={0}
-                onPaste={e=>{const item=[...e.clipboardData.items].find(i=>i.type.startsWith("image/")||i.type.startsWith("video/"));if(item)handleFile(item.getAsFile());}}
-                onKeyDown={()=>{}}
-                style={{ border:`1px solid ${T.border}`, borderRadius:8, padding:"24px", textAlign:"center", background:T.surface2 }}>
-                <div style={{ fontSize:13, color:T.muted, marginBottom:10 }}>Copy an image from Discord and press <span style={{ color:T.amber, fontWeight:700 }}>Ctrl+V</span> here</div>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12 }}>
-                  <div style={{ height:1, width:40, background:T.border }}/>
-                  <span style={{ fontSize:11, color:T.muted }}>or</span>
-                  <div style={{ height:1, width:40, background:T.border }}/>
-                </div>
-                <button onClick={()=>fileRef.current?.click()} style={{ marginTop:10, background:"transparent", border:`1px solid ${T.border}`, color:T.muted, padding:"7px 16px", borderRadius:5, fontSize:12, cursor:"pointer" }}>Browse files</button>
+                <button onClick={()=>{setPreview(null);setForm(p=>({...p,media_data:"",media_url:"",media_type:"image"}));}} style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,0.7)", border:"none", color:"#fff", width:24, height:24, borderRadius:"50%", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
               </div>
             )}
           </div>

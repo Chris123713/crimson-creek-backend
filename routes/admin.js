@@ -694,11 +694,28 @@ adminRouter.post('/spotlight', requireAuth, requirePermission('canPostAnnounceme
   try {
     const { title, description, media_data, media_url, media_type, tag } = req.body;
     if (!title || (!media_data && !media_url)) return res.status(400).json({ error: 'Title and media required' });
+
+    // If a URL was provided (e.g. Discord CDN), download it and store as base64
+    let finalMediaData = media_data || null;
+    let finalMediaType = media_type || 'image';
+    if (!finalMediaData && media_url) {
+      try {
+        const fetch = require('node-fetch');
+        const imgRes = await fetch(media_url, { timeout: 15000 });
+        if (imgRes.ok) {
+          const contentType = imgRes.headers.get('content-type') || '';
+          const buffer = await imgRes.buffer();
+          finalMediaData = `data:${contentType};base64,${buffer.toString('base64')}`;
+          if (contentType.startsWith('video/')) finalMediaType = 'video';
+        }
+      } catch (e) { console.error('Failed to download spotlight media:', e.message); }
+    }
+
     const [inserted] = await db('spotlight_posts').insert({
       title, description: description || null,
       media_url: media_url || '',
-      media_data: media_data || null,
-      media_type: media_type || 'image',
+      media_data: finalMediaData,
+      media_type: finalMediaType,
       tag: tag || null,
       author: req.session.user.username,
     }).returning('*');
