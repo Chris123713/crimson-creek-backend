@@ -682,6 +682,37 @@ adminRouter.delete('/announcements/:id', requireAuth, requirePermission('canPost
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Spotlight endpoints ──────────────────────────────────────────────────────
+adminRouter.get('/spotlight', async (req, res) => {
+  try {
+    const posts = await db('spotlight_posts').orderBy('created_at', 'desc');
+    res.json(posts);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+adminRouter.post('/spotlight', requireAuth, requirePermission('canPostAnnouncements'), async (req, res) => {
+  try {
+    const { title, description, media_url, media_type, tag } = req.body;
+    if (!title || !media_url) return res.status(400).json({ error: 'Title and media URL required' });
+    const [inserted] = await db('spotlight_posts').insert({
+      title, description: description || null, media_url, media_type: media_type || 'image', tag: tag || null, author: req.session.user.username,
+    }).returning('*');
+    const post = inserted?.id ? inserted : await db('spotlight_posts').where('id', inserted).first();
+    await logAction('spotlight_posted', req.session.user.username, post.id, { title });
+    broadcast(req.app, 'new_spotlight', post);
+    res.json(post);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+adminRouter.delete('/spotlight/:id', requireAuth, requirePermission('canPostAnnouncements'), async (req, res) => {
+  try {
+    await db('spotlight_posts').where('id', req.params.id).delete();
+    await logAction('spotlight_deleted', req.session.user.username, req.params.id);
+    broadcast(req.app, 'delete_spotlight', { id: parseInt(req.params.id) });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── SSE: session keep-alive + force-logout channel ───────────────────────────
 adminRouter.get('/sse-session', requireAuth, (req, res) => {
   const sseClients = req.app.locals.sseClients;

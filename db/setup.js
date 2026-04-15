@@ -159,6 +159,17 @@ async function setupDatabase() {
     t.datetime('created_at').defaultTo(knex.fn.now());
   });
 
+  await createIfMissing('spotlight_posts', t => {
+    t.increments('id').primary();
+    t.string('title').notNullable();
+    t.text('description').nullable();
+    t.text('media_url').notNullable();
+    t.string('media_type').defaultTo('image');
+    t.string('tag').nullable();
+    t.string('author').notNullable();
+    t.datetime('created_at').defaultTo(knex.fn.now());
+  });
+
   await createIfMissing('staff_notes', t => {
     t.increments('id').primary();
     t.string('target_username').notNullable();
