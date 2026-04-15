@@ -1286,12 +1286,31 @@ function DashPage({ user, perms, sub, setPage, announcements, setAnnouncements }
 // ─── SPOTLIGHT PAGE ──────────────────────────────────────────────────────────
 function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title:"", description:"", media_url:"", media_type:"image", tag:"" });
+  const [form, setForm] = useState({ title:"", description:"", media_data:"", media_type:"image", tag:"" });
+  const [preview, setPreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState(null);
+  const fileRef = useRef(null);
   const canPost = perms.canAnnounce;
 
+  function handleFile(file) {
+    if (!file) return;
+    const isVideo = file.type.startsWith("video/");
+    const isImage = file.type.startsWith("image/");
+    if (!isImage && !isVideo) { showToast("Only images and videos are supported.", T.red); return; }
+    if (file.size > 15 * 1024 * 1024) { showToast("File too large (max 15MB).", T.red); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target.result;
+      setForm(p => ({ ...p, media_data: base64, media_type: isVideo ? "video" : "image" }));
+      setPreview(base64);
+    };
+    reader.readAsDataURL(file);
+  }
+
   function submitPost() {
-    if (!form.title || !form.media_url) { showToast("Title and media URL required.", T.red); return; }
+    if (!form.title || !form.media_data) { showToast("Title and media file required.", T.red); return; }
+    setUploading(true);
     fetch(`${BACKEND_URL}/api/admin/spotlight`, {
       method:"POST", credentials:"include",
       headers:{"Content-Type":"application/json"},
@@ -1300,11 +1319,13 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
       .then(r=>r.ok?r.json():Promise.reject())
       .then(post=>{
         setPosts(p=>[post,...p]);
-        setForm({ title:"", description:"", media_url:"", media_type:"image", tag:"" });
+        setForm({ title:"", description:"", media_data:"", media_type:"image", tag:"" });
+        setPreview(null);
         setShowForm(false);
         showToast("Spotlight post added!", T.green);
       })
-      .catch(()=>showToast("Failed to post.", T.red));
+      .catch(()=>showToast("Failed to post.", T.red))
+      .finally(()=>setUploading(false));
   }
 
   function deletePost(id) {
@@ -1354,28 +1375,32 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
             </div>
           </div>
           <div style={{ marginBottom:10 }}>
-            <div style={{ fontSize:10, color:T.muted, marginBottom:4, letterSpacing:0.5 }}>MEDIA URL (image or video link)</div>
-            <input value={form.media_url} onChange={e=>setForm(p=>({...p,media_url:e.target.value}))} placeholder="https://i.imgur.com/example.png" style={{ width:"100%", background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"9px 12px", borderRadius:5, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:FU }}/>
+            <div style={{ fontSize:10, color:T.muted, marginBottom:4, letterSpacing:0.5 }}>UPLOAD IMAGE OR VIDEO</div>
+            <input ref={fileRef} type="file" accept="image/*,video/*" onChange={e=>handleFile(e.target.files[0])} style={{ display:"none" }}/>
+            <div onClick={()=>fileRef.current?.click()}
+              onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor=T.amber}}
+              onDragLeave={e=>{e.currentTarget.style.borderColor=T.border}}
+              onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor=T.border;handleFile(e.dataTransfer.files[0])}}
+              style={{ border:`2px dashed ${T.border}`, borderRadius:8, padding:preview?"0":"32px", textAlign:"center", cursor:"pointer", background:T.surface2, overflow:"hidden", transition:"border-color 0.2s" }}>
+              {preview ? (
+                form.media_type === "video"
+                  ? <video src={preview} style={{ width:"100%", maxHeight:220, objectFit:"cover" }} muted/>
+                  : <img src={preview} alt="Preview" style={{ width:"100%", maxHeight:220, objectFit:"cover" }}/>
+              ) : (
+                <div>
+                  <div style={{ fontSize:28, marginBottom:8, opacity:0.4 }}>+</div>
+                  <div style={{ fontSize:13, color:T.muted }}>Click to browse or drag & drop</div>
+                  <div style={{ fontSize:11, color:T.muted, marginTop:4, opacity:0.6 }}>Images & videos up to 15MB</div>
+                </div>
+              )}
+            </div>
+            {preview && <button onClick={()=>{setPreview(null);setForm(p=>({...p,media_data:"",media_type:"image"}));}} style={{ background:"transparent", border:"none", color:T.red, fontSize:11, cursor:"pointer", marginTop:4 }}>Remove file</button>}
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-            <div>
-              <div style={{ fontSize:10, color:T.muted, marginBottom:4, letterSpacing:0.5 }}>MEDIA TYPE</div>
-              <select value={form.media_type} onChange={e=>setForm(p=>({...p,media_type:e.target.value}))} style={{ width:"100%", background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"9px 12px", borderRadius:5, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:FU }}>
-                <option value="image">Image</option>
-                <option value="video">Video</option>
-              </select>
-            </div>
-            <div>
-              <div style={{ fontSize:10, color:T.muted, marginBottom:4, letterSpacing:0.5 }}>DESCRIPTION (optional)</div>
-              <input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Short description..." style={{ width:"100%", background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"9px 12px", borderRadius:5, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:FU }}/>
-            </div>
+          <div style={{ marginBottom:10 }}>
+            <div style={{ fontSize:10, color:T.muted, marginBottom:4, letterSpacing:0.5 }}>DESCRIPTION (optional)</div>
+            <input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Short description..." style={{ width:"100%", background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"9px 12px", borderRadius:5, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:FU }}/>
           </div>
-          {form.media_url && form.media_type === "image" && (
-            <div style={{ marginBottom:10, borderRadius:8, overflow:"hidden", border:`1px solid ${T.border}`, maxHeight:200 }}>
-              <img src={form.media_url} alt="Preview" style={{ width:"100%", height:200, objectFit:"cover" }} onError={e=>{e.target.style.display="none"}}/>
-            </div>
-          )}
-          <button onClick={submitPost} style={{ background:T.amber, color:"#fff", border:"none", padding:"10px 24px", borderRadius:5, fontSize:13, fontWeight:700, cursor:"pointer" }}>Post to Spotlight</button>
+          <button onClick={submitPost} disabled={uploading} style={{ background:uploading?T.muted:T.amber, color:"#fff", border:"none", padding:"10px 24px", borderRadius:5, fontSize:13, fontWeight:700, cursor:uploading?"wait":"pointer" }}>{uploading ? "Uploading..." : "Post to Spotlight"}</button>
         </div>
       )}
 
@@ -1390,6 +1415,7 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:16 }}>
           {posts.map(p => {
             const tagColor = tagColors[p.tag] || T.muted;
+            const mediaSrc = p.media_data || p.media_url;
             return (
               <div key={p.id} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, overflow:"hidden", transition:"all 0.2s", cursor:"pointer" }}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=T.amber+"60"}
@@ -1397,9 +1423,9 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
                 {/* Media */}
                 <div onClick={()=>setLightbox(p)} style={{ position:"relative", paddingTop:"75%", background:T.surface2, overflow:"hidden" }}>
                   {p.media_type === "video" ? (
-                    <video src={p.media_url} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} muted/>
+                    <video src={mediaSrc} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} muted/>
                   ) : (
-                    <img src={p.media_url} alt={p.title} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} onError={e=>{e.target.style.display="none"}}/>
+                    <img src={mediaSrc} alt={p.title} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} onError={e=>{e.target.style.display="none"}}/>
                   )}
                   {p.tag && (
                     <div style={{ position:"absolute", top:10, left:10, fontSize:10, fontWeight:700, background:tagColor+"22", color:tagColor, border:`1px solid ${tagColor}40`, padding:"3px 8px", borderRadius:4, backdropFilter:"blur(8px)" }}>{p.tag.toUpperCase()}</div>
@@ -1432,11 +1458,11 @@ function SpotlightPage({ user, perms, showToast, posts, setPosts }) {
         <div onClick={()=>setLightbox(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", padding:32 }}>
           <div onClick={e=>e.stopPropagation()} style={{ maxWidth:"90vw", maxHeight:"90vh", position:"relative" }}>
             <button onClick={()=>setLightbox(null)} style={{ position:"absolute", top:-40, right:0, background:"none", border:"none", color:"#fff", fontSize:24, cursor:"pointer" }}>✕</button>
-            {lightbox.media_type === "video" ? (
-              <video src={lightbox.media_url} controls autoPlay style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:8 }}/>
+            {(() => { const src = lightbox.media_data || lightbox.media_url; return lightbox.media_type === "video" ? (
+              <video src={src} controls autoPlay style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:8 }}/>
             ) : (
-              <img src={lightbox.media_url} alt={lightbox.title} style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:8, objectFit:"contain" }}/>
-            )}
+              <img src={src} alt={lightbox.title} style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:8, objectFit:"contain" }}/>
+            ); })()}
             <div style={{ textAlign:"center", marginTop:12 }}>
               <div style={{ fontFamily:FS, fontSize:18, fontWeight:700 }}>{lightbox.title}</div>
               {lightbox.description && <div style={{ fontSize:13, color:T.muted, fontFamily:FB, marginTop:4 }}>{lightbox.description}</div>}

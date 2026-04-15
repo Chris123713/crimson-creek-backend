@@ -219,6 +219,18 @@ async function setupDatabase() {
     }
   }
 
+  // Add media_data column to spotlight_posts for direct uploads
+  {
+    const hasTable = await knex.schema.hasTable('spotlight_posts');
+    if (hasTable) {
+      const has = await knex.schema.hasColumn('spotlight_posts', 'media_data');
+      if (!has) {
+        await knex.schema.table('spotlight_posts', t => t.text('media_data'));
+        console.log('  ↳ Added column spotlight_posts.media_data');
+      }
+    }
+  }
+
   // Fix sessions table — if it has 'expired' column (old SQLite schema) drop it
   // so connect-pg-simple can recreate it correctly with 'expire' column
   if (process.env.DATABASE_URL) {

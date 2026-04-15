@@ -692,10 +692,15 @@ adminRouter.get('/spotlight', async (req, res) => {
 
 adminRouter.post('/spotlight', requireAuth, requirePermission('canPostAnnouncements'), async (req, res) => {
   try {
-    const { title, description, media_url, media_type, tag } = req.body;
-    if (!title || !media_url) return res.status(400).json({ error: 'Title and media URL required' });
+    const { title, description, media_data, media_url, media_type, tag } = req.body;
+    if (!title || (!media_data && !media_url)) return res.status(400).json({ error: 'Title and media required' });
     const [inserted] = await db('spotlight_posts').insert({
-      title, description: description || null, media_url, media_type: media_type || 'image', tag: tag || null, author: req.session.user.username,
+      title, description: description || null,
+      media_url: media_url || '',
+      media_data: media_data || null,
+      media_type: media_type || 'image',
+      tag: tag || null,
+      author: req.session.user.username,
     }).returning('*');
     const post = inserted?.id ? inserted : await db('spotlight_posts').where('id', inserted).first();
     await logAction('spotlight_posted', req.session.user.username, post.id, { title });
