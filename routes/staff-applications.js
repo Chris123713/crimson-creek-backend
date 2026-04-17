@@ -169,37 +169,102 @@ router.post('/', requireAuth, async (req, res) => {
       const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
       const CHANNEL_ID = process.env.STAFF_APPS_CHANNEL_ID;
       if (BOT_TOKEN && CHANNEL_ID) {
-        const truncate = (str, n) => str && str.length > n ? str.substring(0, n) + '...' : (str || 'N/A');
+        const cap = (str, n) => str && str.length > n ? str.substring(0, n) + '...' : (str || 'N/A');
 
-        const description = [
-          `**Age:** ${age}`,
-          `**Discord Tag:** ${discord_tag}`,
-          `**Timezone & Availability:** ${truncate(timezone_availability, 300)}`,
-          `**Hours per week:** ${hours_per_week}`,
-          `**Prior staff experience:** ${truncate(prior_experience, 400)}`,
-          ``,
-          `**RP Experience:**\n${truncate(rp_experience, 600)}`,
-          `**RedM Experience:**\n${truncate(redm_experience, 600)}`,
-          `**Read server rules:** ${read_rules}`,
-          ``,
-          `**What is "serious roleplay"?**\n${truncate(what_is_serious_rp, 800)}`,
-          `**Why do you want to be staff?**\n${truncate(why_staff, 800)}`,
-          `**What makes you a good fit?**\n${truncate(good_fit, 800)}`,
-        ].join('\n');
+        const embeds = [
+          {
+            title: `📋 ${user.username}'s Staff Application`,
+            description: [
+              `**Age:** ${age}`,
+              `**Discord Tag:** ${discord_tag}`,
+              `**Timezone & Availability:** ${cap(timezone_availability, 500)}`,
+              `**Hours per week:** ${hours_per_week}`,
+              `**Prior staff experience:**\n${cap(prior_experience, 800)}`,
+            ].join('\n'),
+            color: 0xc9963a,
+            timestamp: new Date().toISOString(),
+          },
+          {
+            title: 'Roleplay Experience',
+            description: [
+              `**RP Experience:**\n${cap(rp_experience, 1500)}`,
+              ``,
+              `**RedM Experience:**\n${cap(redm_experience, 1500)}`,
+              ``,
+              `**Read server rules:** ${read_rules}`,
+            ].join('\n'),
+            color: 0xc9963a,
+          },
+          {
+            title: 'Knowledge & Motivation',
+            description: [
+              `**What is "serious roleplay"?**\n${cap(what_is_serious_rp, 1200)}`,
+              ``,
+              `**Why do you want to be staff?**\n${cap(why_staff, 1200)}`,
+              ``,
+              `**What makes you a good fit?**\n${cap(good_fit, 1200)}`,
+            ].join('\n'),
+            color: 0xc9963a,
+          },
+          {
+            title: 'Situational Questions',
+            description: [
+              `**A player reports RDM. How do you handle it?**\n${cap(handle_rdm, 1200)}`,
+              ``,
+              `**Two players arguing in Discord VC. What do you do?**\n${cap(handle_discord_argument, 1200)}`,
+            ].join('\n'),
+            color: 0xc9963a,
+          },
+          {
+            title: 'Scenario Analysis (1/2)',
+            description: [
+              `**Valentine Saloon Scenario — Identify every rule violation:**\n${cap(scenario_valentine, 1800)}`,
+              ``,
+              `**Metagaming Scenario — What was wrong here?**\n${cap(scenario_metagaming, 1800)}`,
+            ].join('\n'),
+            color: 0xc9963a,
+          },
+          {
+            title: 'Scenario Analysis (2/2)',
+            description: [
+              `**Dr. Whitaker Scenario — Did Miles break any rules?**\n${cap(scenario_dr_whitaker, 1800)}`,
+              ``,
+              `**Deputy Clark Scenario — What rules were broken?**\n${cap(scenario_deputy_clark, 1800)}`,
+            ].join('\n'),
+            color: 0xc9963a,
+          },
+          {
+            title: 'Staff Readiness',
+            description: [
+              `**Suspect a staff member is abusing powers:**\n${cap(suspect_staff_abuse, 1000)}`,
+              ``,
+              `**New player keeps breaking character:**\n${cap(new_player_breaking_character, 1000)}`,
+              ``,
+              `**Peak time, multiple rule breaks — how do you prioritize?**\n${cap(peak_time_priority, 1000)}`,
+            ].join('\n'),
+            color: 0xc9963a,
+          },
+          {
+            title: 'Agreement & Final',
+            description: [
+              `**Code of Conduct:** ${agree_code_of_conduct}`,
+              `**Signature:** ${signature}`,
+              `**Other commitments:** ${other_commitments || 'None'}`,
+              `**Understands patience/maturity:** ${understand_patience || 'N/A'}`,
+              ``,
+              `**Why should we pick you?**\n${cap(why_pick_you, 1500)}`,
+            ].join('\n'),
+            color: 0xc9963a,
+            footer: { text: `Staff App #${id} — Crimson Creek RP` },
+          },
+        ];
 
         const threadRes = await fetch(`https://discord.com/api/v10/channels/${CHANNEL_ID}/threads`, {
           method: 'POST',
           headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: `${user.username}'s Staff Application`,
-            message: {
-              embeds: [{
-                title: 'Staff Application',
-                description,
-                color: 0xc9963a,
-                timestamp: new Date().toISOString(),
-              }],
-            },
+            message: { embeds },
           }),
         });
         const threadData = await threadRes.json();
