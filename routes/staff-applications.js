@@ -259,17 +259,31 @@ router.post('/', requireAuth, async (req, res) => {
           },
         ];
 
+        // Create thread with the first embed only
         const threadRes = await fetch(`https://discord.com/api/v10/channels/${CHANNEL_ID}/threads`, {
           method: 'POST',
           headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: `${user.username}'s Staff Application`,
-            message: { embeds },
+            message: { embeds: [embeds[0]] },
           }),
         });
         const threadData = await threadRes.json();
+        console.log(`[STAFF APP] Discord thread response status: ${threadRes.status}`);
         if (threadData.id) {
           await db('staff_applications').where('id', id).update({ thread_id: threadData.id });
+
+          // Post remaining embeds as follow-up messages in the thread (max 10 embeds per message)
+          const remaining = embeds.slice(1);
+          if (remaining.length > 0) {
+            await fetch(`https://discord.com/api/v10/channels/${threadData.id}/messages`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ embeds: remaining }),
+            });
+          }
+        } else {
+          console.error('[STAFF APP] Thread creation failed:', JSON.stringify(threadData));
         }
       }
     } catch (e) { console.error('Failed to post staff application forum thread:', e); }
