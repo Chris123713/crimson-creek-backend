@@ -407,7 +407,8 @@ adminRouter.get('/stats', requireAuth, requirePermission('canViewStaffPanel'), a
     const [pendingAppeals] = await db('appeals').where('status', 'pending').count('* as c');
     const [pendingApps] = await db('applications').where('status', 'pending').count('* as c');
     const [openTickets] = await db('tickets').where('status', 'open').count('* as c');
-    res.json({ totalUsers: totalUsers.c, pendingAppeals: pendingAppeals.c, pendingApps: pendingApps.c, openTickets: openTickets.c });
+    const [pendingStaffApps] = await db('staff_applications').where('status', 'pending').count('* as c');
+    res.json({ totalUsers: totalUsers.c, pendingAppeals: pendingAppeals.c, pendingApps: pendingApps.c, openTickets: openTickets.c, pendingStaffApps: pendingStaffApps.c });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

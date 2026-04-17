@@ -170,6 +170,51 @@ async function setupDatabase() {
     t.datetime('created_at').defaultTo(knex.fn.now());
   });
 
+  // ── Site settings (key/value store for toggles like staff apps open/closed) ─
+  await createIfMissing('site_settings', t => {
+    t.string('key').primary();
+    t.text('value').notNullable();
+    t.datetime('updated_at').defaultTo(knex.fn.now());
+  });
+
+  // ── Staff applications ─────────────────────────────────────────────────────
+  await createIfMissing('staff_applications', t => {
+    t.increments('id').primary();
+    t.string('user_id').notNullable();
+    t.string('player').notNullable();
+    t.string('age').notNullable();
+    t.string('discord_tag').notNullable();
+    t.text('timezone_availability').notNullable();
+    t.string('hours_per_week').notNullable();
+    t.text('prior_experience').notNullable();
+    t.text('rp_experience').notNullable();
+    t.text('redm_experience').notNullable();
+    t.string('read_rules').notNullable();
+    t.text('what_is_serious_rp').notNullable();
+    t.text('why_staff').notNullable();
+    t.text('good_fit').notNullable();
+    t.text('handle_rdm').notNullable();
+    t.text('handle_discord_argument').notNullable();
+    t.text('scenario_valentine').notNullable();
+    t.text('scenario_metagaming').notNullable();
+    t.text('scenario_dr_whitaker').notNullable();
+    t.text('scenario_deputy_clark').notNullable();
+    t.text('suspect_staff_abuse').notNullable();
+    t.text('new_player_breaking_character').notNullable();
+    t.text('peak_time_priority').notNullable();
+    t.string('agree_code_of_conduct').notNullable();
+    t.text('signature').notNullable();
+    t.text('other_commitments');
+    t.string('understand_patience');
+    t.text('why_pick_you').notNullable();
+    t.string('status').defaultTo('pending');
+    t.string('reviewer_id');
+    t.text('reviewer_note');
+    t.string('thread_id');
+    t.datetime('created_at').defaultTo(knex.fn.now());
+    t.datetime('updated_at').defaultTo(knex.fn.now());
+  });
+
   await createIfMissing('staff_notes', t => {
     t.increments('id').primary();
     t.string('target_username').notNullable();
