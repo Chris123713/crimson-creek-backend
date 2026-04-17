@@ -562,6 +562,8 @@ function Portal({ user, onLogout }) {
   const [tickets,setTickets]=useState(INIT_TICKETS);
   const [announcements,setAnnouncements]=useState(INIT_ANNOUNCEMENTS);
   const [spotlightPosts,setSpotlightPosts]=useState([]);
+  const [staffApps,setStaffApps]=useState([]);
+  const [staffAppsOpen,setStaffAppsOpen]=useState(false);
   const [bans,setBans]=useState(INIT_BANS);
   const [rules,setRules]=useState(RULES);
   const [activityLog,setActivityLog]=useState([]);
@@ -615,6 +617,23 @@ function Portal({ user, onLogout }) {
       .then(data=>setAnnouncements(data))
       .catch(()=>{});
     fetch(`${BACKEND_URL}/api/admin/spotlight`,{credentials:'include'}).then(r=>r.ok?r.json():[]).then(setSpotlightPosts).catch(()=>{});
+    fetch(`${BACKEND_URL}/api/staff-applications/status`,{credentials:'include'}).then(r=>r.ok?r.json():{open:false}).then(d=>setStaffAppsOpen(d.open)).catch(()=>{});
+    fetch(`${BACKEND_URL}/api/staff-applications`,{credentials:'include'}).then(r=>r.ok?r.json():[]).then(data=>setStaffApps(data.map(a=>({
+      id:a.id, player:a.player, discord_tag:a.discord_tag, age:a.age,
+      timezone_availability:a.timezone_availability, hours_per_week:a.hours_per_week,
+      prior_experience:a.prior_experience, rp_experience:a.rp_experience,
+      redm_experience:a.redm_experience, read_rules:a.read_rules,
+      what_is_serious_rp:a.what_is_serious_rp, why_staff:a.why_staff, good_fit:a.good_fit,
+      handle_rdm:a.handle_rdm, handle_discord_argument:a.handle_discord_argument,
+      scenario_valentine:a.scenario_valentine, scenario_metagaming:a.scenario_metagaming,
+      scenario_dr_whitaker:a.scenario_dr_whitaker, scenario_deputy_clark:a.scenario_deputy_clark,
+      suspect_staff_abuse:a.suspect_staff_abuse, new_player_breaking_character:a.new_player_breaking_character,
+      peak_time_priority:a.peak_time_priority, agree_code_of_conduct:a.agree_code_of_conduct,
+      signature:a.signature, other_commitments:a.other_commitments,
+      understand_patience:a.understand_patience, why_pick_you:a.why_pick_you,
+      status:a.status, date:new Date(a.created_at).toLocaleDateString(),
+      reviewer:a.reviewer_id||null, reviewNote:a.reviewer_note||null,
+    })))).catch(()=>{});
   },[]);
 
   // Sound definitions — all generated via Web Audio, no files needed
@@ -977,6 +996,7 @@ function Portal({ user, onLogout }) {
     { id:"rules",        label:"Rules",        icon:"☰" },
     ...(isWhitelistedOrAbove ? [{ id:"appeals", label:"Ban Appeals", icon:"⚖️" }] : []),
     ...(isWhitelistedOrAbove ? [{ id:"applications", label:"Applications", icon:"📄" }] : []),
+    ...(isWhitelistedOrAbove ? [{ id:"staff-apps", label:"Staff Apps", icon:"📋" }] : []),
     ...(isWhitelistedOrAbove ? [{ id:"support", label:"Support", icon:"🎧" }] : []),
     ...(isStaffRole ? [{ id:"staff", label:"Staff Roster", icon:"👥" }] : []),
     ...(perms.canStaff?[{ id:"staffpanel", label:"Staff Panel", icon:"🛡️" }]:[]),
@@ -1175,9 +1195,10 @@ function Portal({ user, onLogout }) {
           {page==="staff"        && <StaffRosterPage user={user}/>}
           {page==="appeals"      && <AppealsPage  user={user} perms={perms} appeals={appeals} setAppeals={setAppeals} showToast={showToast} logAction={logAction} pushNotif={pushNotif}/>}
           {page==="applications" && <AppsPage     user={user} perms={perms} apps={apps} setApps={setApps} showToast={showToast} logAction={logAction} pushNotif={pushNotif}/>}
+          {page==="staff-apps"   && <StaffAppsPage user={user} perms={perms} staffApps={staffApps} setStaffApps={setStaffApps} staffAppsOpen={staffAppsOpen} showToast={showToast}/>}
           {page==="subscriptions"&& <SubsPage     user={user} perms={perms} sub={sub} showToast={showToast}/>}
           {page==="support"      && <SupportPage  user={user} perms={perms} tickets={tickets} setTickets={setTickets} showToast={showToast} username={user.username} pushNotif={pushNotif}/>}
-          {page==="staffpanel" && perms.canStaff && <StaffPanel user={user} perms={perms} appeals={appeals} setAppeals={setAppeals} apps={apps} setApps={setApps} tickets={tickets} setTickets={setTickets} announcements={announcements} setAnnouncements={setAnnouncements} bans={bans} setBans={setBans} rules={rules} setRules={setRules} activityLog={activityLog} activityLoading={activityLoading} showToast={showToast} logAction={logAction} pushNotif={pushNotif} fetchActivityLog={fetchActivityLog}/>}
+          {page==="staffpanel" && perms.canStaff && <StaffPanel user={user} perms={perms} appeals={appeals} setAppeals={setAppeals} apps={apps} setApps={setApps} tickets={tickets} setTickets={setTickets} announcements={announcements} setAnnouncements={setAnnouncements} bans={bans} setBans={setBans} rules={rules} setRules={setRules} activityLog={activityLog} activityLoading={activityLoading} showToast={showToast} logAction={logAction} pushNotif={pushNotif} fetchActivityLog={fetchActivityLog} staffApps={staffApps} setStaffApps={setStaffApps} staffAppsOpen={staffAppsOpen} setStaffAppsOpen={setStaffAppsOpen}/>}
         </div>
       </div>
     </div>
@@ -1918,6 +1939,195 @@ function AppsPage({ user, perms, apps, setApps, showToast, logAction }) {
           <AppField label="What's the secret code you found while reading our rules? *" k="secret_code" ph="The code is hidden in the rules..." form={form} setForm={setForm}/>
           <div style={{ fontSize:11, color:T.muted, fontFamily:FB, marginBottom:16, fontStyle:"italic" }}>By submitting this application, you acknowledge that Crimson Creek is a serious story driven roleplay community.</div>
           <button onClick={submit} style={{ width:"100%", background:T.green, color:"#fff", border:"none", padding:"11px", borderRadius:5, fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:FU }}>Submit Application</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── STAFF APPLICATIONS PAGE ──────────────────────────────────────────────────
+function StaffAppsPage({ user, perms, staffApps, setStaffApps, staffAppsOpen, showToast }) {
+  const [view,setView]=useState("list");
+  const [submitted,setSubmitted]=useState(false);
+  const EMPTY={
+    age:"", discord_tag:user.username+"#0000", timezone_availability:"", hours_per_week:"",
+    prior_experience:"", rp_experience:"", redm_experience:"", read_rules:"",
+    what_is_serious_rp:"", why_staff:"", good_fit:"", handle_rdm:"",
+    handle_discord_argument:"", scenario_valentine:"", scenario_metagaming:"",
+    scenario_dr_whitaker:"", scenario_deputy_clark:"", suspect_staff_abuse:"",
+    new_player_breaking_character:"", peak_time_priority:"", agree_code_of_conduct:"",
+    signature:"", other_commitments:"", understand_patience:"", why_pick_you:"",
+  };
+  const [form,setForm]=useState(EMPTY);
+
+  function wc(str){ return str.trim().split(/\s+/).filter(Boolean).length; }
+
+  function submit() {
+    const req=["age","discord_tag","timezone_availability","hours_per_week","prior_experience","rp_experience","redm_experience","read_rules","what_is_serious_rp","why_staff","good_fit","handle_rdm","handle_discord_argument","scenario_valentine","scenario_metagaming","scenario_dr_whitaker","scenario_deputy_clark","suspect_staff_abuse","new_player_breaking_character","peak_time_priority","agree_code_of_conduct","signature","why_pick_you"];
+    if(req.some(k=>!form[k]?.trim())){ showToast("Please fill all required fields.",T.red); return; }
+    if(wc(form.rp_experience)<25){ showToast(`RP experience needs 25+ words (${wc(form.rp_experience)} so far).`,T.amber); return; }
+    if(wc(form.redm_experience)<25){ showToast(`RedM experience needs 25+ words (${wc(form.redm_experience)} so far).`,T.amber); return; }
+    if(wc(form.what_is_serious_rp)<100){ showToast(`"Serious roleplay" answer needs 100+ words (${wc(form.what_is_serious_rp)} so far).`,T.amber); return; }
+    if(wc(form.why_staff)<100){ showToast(`"Why staff" answer needs 100+ words (${wc(form.why_staff)} so far).`,T.amber); return; }
+    if(wc(form.good_fit)<100){ showToast(`"Good fit" answer needs 100+ words (${wc(form.good_fit)} so far).`,T.amber); return; }
+    if(wc(form.handle_rdm)<100){ showToast(`"Handle RDM" answer needs 100+ words (${wc(form.handle_rdm)} so far).`,T.amber); return; }
+    if(wc(form.handle_discord_argument)<100){ showToast(`"Discord argument" answer needs 100+ words (${wc(form.handle_discord_argument)} so far).`,T.amber); return; }
+    if(wc(form.suspect_staff_abuse)<50){ showToast(`"Staff abuse" answer needs 50+ words (${wc(form.suspect_staff_abuse)} so far).`,T.amber); return; }
+    if(wc(form.new_player_breaking_character)<50){ showToast(`"Breaking character" answer needs 50+ words (${wc(form.new_player_breaking_character)} so far).`,T.amber); return; }
+    if(wc(form.peak_time_priority)<50){ showToast(`"Peak time priority" answer needs 50+ words (${wc(form.peak_time_priority)} so far).`,T.amber); return; }
+    if(wc(form.why_pick_you)<50){ showToast(`"Why pick you" answer needs 50+ words (${wc(form.why_pick_you)} so far).`,T.amber); return; }
+    if(form.agree_code_of_conduct!=="I agree"){ showToast("You must select 'I agree' for the Staff Code of Conduct.",T.red); return; }
+
+    fetch(`${BACKEND_URL}/api/staff-applications`,{
+      method:"POST", credentials:"include",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(form),
+    })
+      .then(r=>r.ok?r.json():r.json().then(e=>Promise.reject(e.error||"Error")))
+      .then(data=>{
+        setStaffApps(p=>[{id:data.id, player:user.username, ...form, status:"pending", date:"Today", reviewer:null},...p]);
+        setSubmitted(true); showToast("Staff application submitted!",T.green);
+      })
+      .catch(err=>showToast(typeof err==="string"?err:"Failed to submit.",T.red));
+  }
+
+  const list=perms.canApps?staffApps:staffApps.filter(a=>a.player===user.username);
+
+  if(submitted) return (
+    <div style={{ padding:"60px 32px", textAlign:"center", maxWidth:500, margin:"0 auto" }}>
+      <div style={{ fontSize:48, marginBottom:16 }}>📋</div>
+      <div style={{ fontFamily:FS, fontSize:28, fontWeight:700, marginBottom:10 }}>STAFF APPLICATION SENT</div>
+      <div style={{ fontSize:14, color:T.muted, lineHeight:1.8, fontFamily:FB, marginBottom:28 }}>Your staff application is under review. Watch your Discord DMs for a response.</div>
+      <button onClick={()=>{setSubmitted(false);setView("list");}} style={{ background:T.green, color:"#fff", border:"none", padding:"11px 28px", borderRadius:6, fontSize:14, fontWeight:700, cursor:"pointer" }}>View My Applications</button>
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:1100, margin:"0 auto" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:22 }}>
+        <div>
+          <div style={{ fontFamily:FS, fontSize:28, fontWeight:700, letterSpacing:1, marginBottom:4 }}>STAFF APPLICATIONS</div>
+          <div style={{ fontSize:13, color:T.muted, fontFamily:FB }}>
+            {staffAppsOpen ? "Applications are currently open. Must be 18+ to apply." : "Staff applications are currently closed. Check back later."}
+          </div>
+        </div>
+        {view==="list" && staffAppsOpen && <button onClick={()=>setView("submit")} style={{ background:T.green, color:"#fff", border:"none", padding:"9px 18px", borderRadius:5, fontSize:13, fontWeight:700, cursor:"pointer" }}>+ Apply Now</button>}
+        {view==="submit" && <button onClick={()=>setView("list")} style={{ background:"none", border:`1px solid ${T.border}`, color:T.muted, padding:"9px 14px", borderRadius:5, fontSize:13, cursor:"pointer" }}>← Back</button>}
+      </div>
+
+      {view==="list" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {list.length===0 && <div style={{ textAlign:"center", padding:"48px", color:T.muted, background:T.surface, borderRadius:8, border:`1px solid ${T.border}` }}>
+            {staffAppsOpen
+              ? <>No applications yet. <span style={{ color:T.amber, cursor:"pointer" }} onClick={()=>setView("submit")}>Apply now →</span></>
+              : "Staff applications are currently closed."
+            }
+          </div>}
+          {list.map(a=>(
+            <div key={a.id} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:"16px 18px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, flexWrap:"wrap" }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5, flexWrap:"wrap" }}>
+                    <span style={{ fontWeight:700, fontSize:14, fontFamily:FS }}>{a.player}</span>
+                    <span style={{ fontSize:11, color:T.muted }}>{a.discord_tag}</span>
+                    <span style={{ fontSize:11, color:T.muted }}>· {a.date}</span>
+                  </div>
+                  {a.hours_per_week && <div style={{ fontSize:12, color:T.muted, marginBottom:3 }}>Hours/week: {a.hours_per_week}</div>}
+                  {a.prior_experience && <div style={{ fontSize:12, color:T.muted, fontFamily:FB, lineHeight:1.6 }}>Experience: {a.prior_experience?.slice(0,120)}{a.prior_experience?.length>120?"...":""}</div>}
+                </div>
+                <Badge label={a.status} color={a.status==="pending"?T.amber:a.status==="approved"?T.green:T.red}/>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {view==="submit" && !staffAppsOpen && (
+        <div style={{ textAlign:"center", padding:"48px", color:T.muted, background:T.surface, borderRadius:8, border:`1px solid ${T.border}` }}>
+          Staff applications are currently closed. Check back later.
+        </div>
+      )}
+
+      {view==="submit" && staffAppsOpen && (
+        <div style={{ maxWidth:700, background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, padding:"26px" }}>
+          <div style={{ fontFamily:FS, fontSize:16, fontWeight:700, color:T.amber, marginBottom:16, letterSpacing:1 }}>PERSONAL INFO</div>
+          <AppField label="Your Age (Must be 18+) *" k="age" ph="Your age" form={form} setForm={setForm}/>
+          <AppField label="Discord Tag (Username#0000) *" k="discord_tag" ph="YourName#0000" form={form} setForm={setForm}/>
+          <AppField label="Timezone & Availability *" k="timezone_availability" ph="e.g. EST, available evenings & weekends" rows={2} form={form} setForm={setForm}/>
+          <AppField label="How many hours can you dedicate to staff duties weekly? *" k="hours_per_week" ph="e.g. 10-15 hours" form={form} setForm={setForm}/>
+          <AppField label="Do you have prior staff experience? If yes, where and what role? *" k="prior_experience" ph="List servers, roles, and duration..." rows={3} form={form} setForm={setForm}/>
+
+          <div style={{ fontFamily:FS, fontSize:16, fontWeight:700, color:T.amber, margin:"24px 0 16px", letterSpacing:1 }}>ROLEPLAY EXPERIENCE</div>
+          <AppField label="How long have you been roleplaying (any platform)? * (25+ words)" k="rp_experience" ph="Describe your RP background..." rows={3} wordMin={25} form={form} setForm={setForm}/>
+          <AppField label="How long in RedM specifically? * (25+ words)" k="redm_experience" ph="Your RedM experience..." rows={3} wordMin={25} form={form} setForm={setForm}/>
+          <div style={{ marginBottom:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:T.muted, letterSpacing:0.5, marginBottom:5 }}>HAVE YOU READ & UNDERSTOOD ALL SERVER RULES? *</div>
+            <select value={form.read_rules} onChange={e=>setForm(p=>({...p,read_rules:e.target.value}))} style={{ width:"100%", background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"9px 12px", borderRadius:5, fontSize:13, outline:"none", fontFamily:FU }}>
+              <option value="">Select...</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+              <option value="Not Yet">Not Yet</option>
+            </select>
+          </div>
+
+          <div style={{ fontFamily:FS, fontSize:16, fontWeight:700, color:T.amber, margin:"24px 0 16px", letterSpacing:1 }}>KNOWLEDGE & MOTIVATION</div>
+          <AppField label='In your own words, what is "serious roleplay"? * (100+ words)' k="what_is_serious_rp" ph="Define serious roleplay in detail..." rows={6} wordMin={100} form={form} setForm={setForm}/>
+          <AppField label="Why do you want to be staff here? * (100+ words)" k="why_staff" ph="Explain your motivation..." rows={6} wordMin={100} form={form} setForm={setForm}/>
+          <AppField label="What makes you a good fit for the team? * (100+ words)" k="good_fit" ph="What skills and qualities do you bring?" rows={6} wordMin={100} form={form} setForm={setForm}/>
+
+          <div style={{ fontFamily:FS, fontSize:16, fontWeight:700, color:T.amber, margin:"24px 0 16px", letterSpacing:1 }}>SITUATIONAL QUESTIONS</div>
+          <AppField label="A player reports RDM. How do you handle it? * (100+ words)" k="handle_rdm" ph="Describe your process step by step..." rows={6} wordMin={100} form={form} setForm={setForm}/>
+          <AppField label="Two players are arguing in Discord VC and escalating. What do you do? * (100+ words)" k="handle_discord_argument" ph="How would you de-escalate this?" rows={6} wordMin={100} form={form} setForm={setForm}/>
+
+          <div style={{ fontFamily:FS, fontSize:16, fontWeight:700, color:T.amber, margin:"24px 0 16px", letterSpacing:1 }}>SCENARIO ANALYSIS</div>
+          <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:6, padding:"14px", marginBottom:16, fontSize:12, color:T.muted, fontFamily:FB, lineHeight:1.8 }}>
+            <strong style={{ color:T.text }}>Valentine Saloon Scenario:</strong> A group of four outlaws ride into Valentine. One of them, John, sees another player named William standing outside the saloon. Without initiating roleplay, John immediately shoots William in the chest, killing him. William is treated at the doctor's office, then rushes back to the saloon and confronts the group in OOC chat, typing: "That was RDM, you can't just kill me." John replies in OOC chat: "Shut up, it's the Wild West, people die." The outlaws then rob another player, Sarah. They pull weapons on her, give her no time to react, and immediately take everything from her pockets. They laugh and ride off. Sarah reports them in Discord. Later that night, William comes back with his friends. They all find John's gang and kill them on sight, with no initiation or roleplay. This escalates into a back and forth revenge war between the groups that lasts over an hour.
+          </div>
+          <AppField label="Identify every rule violation. Who broke what rules? *" k="scenario_valentine" ph="Break down each violation..." rows={8} form={form} setForm={setForm}/>
+
+          <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:6, padding:"14px", marginBottom:16, fontSize:12, color:T.muted, fontFamily:FB, lineHeight:1.8 }}>
+            <strong style={{ color:T.text }}>Metagaming Scenario:</strong> In Valentine, a town hall meeting is being held. Ethan, a rancher, gives a fiery speech accusing the sheriff's office of favoring certain ranches. An hour later, masked riders ambush the sheriff using things only Ethan said. The ranchers deny metagaming, claiming "We were IC at the meeting." Ethan insists he never spoke to those ranchers after. Logs show one rancher crashed mid-meeting and came back after Ethan's speech. Both sides accuse each other.
+          </div>
+          <AppField label="What was wrong here? *" k="scenario_metagaming" ph="Analyze the metagaming claims..." rows={6} form={form} setForm={setForm}/>
+
+          <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:6, padding:"14px", marginBottom:16, fontSize:12, color:T.muted, fontFamily:FB, lineHeight:1.8 }}>
+            <strong style={{ color:T.text }}>Dr. Whitaker Scenario:</strong> Dr. Whitaker roleplays surgery for 15 minutes on Miles (shot twice in stomach), warning he cannot walk for several days. Miles agrees. The very next day, Miles is sprinting, bar fighting, and lassoing players. Miles says: "I wasn't dead, I was revived. I can choose to recover as quickly as I want."
+          </div>
+          <AppField label="Did Miles break any rules? *" k="scenario_dr_whitaker" ph="Analyze the situation..." rows={6} form={form} setForm={setForm}/>
+
+          <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:6, padding:"14px", marginBottom:16, fontSize:12, color:T.muted, fontFamily:FB, lineHeight:1.8 }}>
+            <strong style={{ color:T.text }}>Deputy Clark Scenario:</strong> Deputy Clark secretly passes gang leader Silas inside info about patrol routes. Silas robs a supply wagon using the tip. Clark then responds to the alert as if he knew nothing. A huge shootout happens. Silas escapes and boasts: "Even the law can't stop us. They're too weak!"
+          </div>
+          <AppField label="What rules were broken and how? *" k="scenario_deputy_clark" ph="Identify all violations..." rows={6} form={form} setForm={setForm}/>
+
+          <div style={{ fontFamily:FS, fontSize:16, fontWeight:700, color:T.amber, margin:"24px 0 16px", letterSpacing:1 }}>STAFF READINESS</div>
+          <AppField label="You suspect a staff member is abusing powers. What's your response? * (50+ words)" k="suspect_staff_abuse" ph="How would you handle this?" rows={4} wordMin={50} form={form} setForm={setForm}/>
+          <AppField label="New player keeps breaking character. What's your approach? * (50+ words)" k="new_player_breaking_character" ph="How would you approach them?" rows={4} wordMin={50} form={form} setForm={setForm}/>
+          <AppField label="Peak time: multiple rule breaks at once. How do you prioritize? * (50+ words)" k="peak_time_priority" ph="How do you triage?" rows={4} wordMin={50} form={form} setForm={setForm}/>
+
+          <div style={{ fontFamily:FS, fontSize:16, fontWeight:700, color:T.amber, margin:"24px 0 16px", letterSpacing:1 }}>AGREEMENT & FINAL QUESTIONS</div>
+          <div style={{ marginBottom:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:T.muted, letterSpacing:0.5, marginBottom:5 }}>STAFF CODE OF CONDUCT (PROFESSIONALISM, NO ABUSE OF POWER, PROPER DOCUMENTATION, CONFIDENTIALITY, RESPECT CHAIN OF COMMAND) *</div>
+            <select value={form.agree_code_of_conduct} onChange={e=>setForm(p=>({...p,agree_code_of_conduct:e.target.value}))} style={{ width:"100%", background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"9px 12px", borderRadius:5, fontSize:13, outline:"none", fontFamily:FU }}>
+              <option value="">Select...</option>
+              <option value="I agree">I agree</option>
+              <option value="I do not agree">I do not agree</option>
+            </select>
+          </div>
+          <AppField label="Signature — Example: [DiscordID] I agree to these terms *" k="signature" ph="[YourDiscordID] I agree to these terms" form={form} setForm={setForm}/>
+          <AppField label="Any commitments that may interfere with staff duties?" k="other_commitments" ph="Work, school, etc." rows={2} optional form={form} setForm={setForm}/>
+          <div style={{ marginBottom:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:T.muted, letterSpacing:0.5, marginBottom:5 }}>DO YOU UNDERSTAND STAFF REQUIRES PATIENCE, MATURITY & FAIRNESS?</div>
+            <select value={form.understand_patience} onChange={e=>setForm(p=>({...p,understand_patience:e.target.value}))} style={{ width:"100%", background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"9px 12px", borderRadius:5, fontSize:13, outline:"none", fontFamily:FU }}>
+              <option value="">Select...</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+          <AppField label="Why should we pick you over others? * (50+ words)" k="why_pick_you" ph="Make your case..." rows={5} wordMin={50} form={form} setForm={setForm}/>
+
+          <div style={{ fontSize:11, color:T.muted, fontFamily:FB, marginBottom:16, fontStyle:"italic" }}>By submitting this application, you acknowledge that you are applying for a staff position at Crimson Creek RP and agree to uphold all staff guidelines.</div>
+          <button onClick={submit} style={{ width:"100%", background:T.green, color:"#fff", border:"none", padding:"11px", borderRadius:5, fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:FU }}>Submit Staff Application</button>
         </div>
       )}
     </div>
@@ -2714,12 +2924,15 @@ function PlayerProfileModal({ username, discordId, avatar, playerRole, appeals, 
 }
 
 // ─── STAFF PANEL ──────────────────────────────────────────────────────────────
-function StaffPanel({ user, perms, appeals, setAppeals, apps, setApps, tickets, setTickets, announcements, setAnnouncements, bans, setBans, rules, setRules, activityLog, activityLoading, showToast, logAction, pushNotif, fetchActivityLog }) {
+function StaffPanel({ user, perms, appeals, setAppeals, apps, setApps, tickets, setTickets, announcements, setAnnouncements, bans, setBans, rules, setRules, activityLog, activityLoading, showToast, logAction, pushNotif, fetchActivityLog, staffApps, setStaffApps, staffAppsOpen, setStaffAppsOpen }) {
   const [tab,setTab]=useState("appeals");
   const [logFilter,setLogFilter]=useState("all");
   const [expandedApp,setExpandedApp]=useState(null);
   const [appStatusFilter,setAppStatusFilter]=useState("all");
   const [appSearch,setAppSearch]=useState("");
+  const [expandedStaffApp,setExpandedStaffApp]=useState(null);
+  const [staffAppStatusFilter,setStaffAppStatusFilter]=useState("all");
+  const [staffAppSearch,setStaffAppSearch]=useState("");
   const [appealSearch,setAppealSearch]=useState("");
   const [appealStatusFilter,setAppealStatusFilter]=useState("all");
   const [ticketSearch,setTicketSearch]=useState("");
@@ -2776,13 +2989,14 @@ function StaffPanel({ user, perms, appeals, setAppeals, apps, setApps, tickets, 
   },[tab]);
 
   function deleteRecord(type, id) {
-    const endpoints = { app:`${BACKEND_URL}/api/applications/${id}`, appeal:`${BACKEND_URL}/api/appeals/${id}`, ticket:`${BACKEND_URL}/api/tickets/${id}` };
+    const endpoints = { app:`${BACKEND_URL}/api/applications/${id}`, appeal:`${BACKEND_URL}/api/appeals/${id}`, ticket:`${BACKEND_URL}/api/tickets/${id}`, staffapp:`${BACKEND_URL}/api/staff-applications/${id}` };
     fetch(endpoints[type], { method:'DELETE', credentials:'include' })
       .then(r=>r.ok?r.json():Promise.reject())
       .then(()=>{
         if(type==='app')    setApps(p=>p.filter(a=>a.id!==id));
         if(type==='appeal') setAppeals(p=>p.filter(a=>a.id!==id));
         if(type==='ticket') setTickets(p=>p.filter(t=>t._id!==id));
+        if(type==='staffapp') setStaffApps(p=>p.filter(a=>a.id!==id));
         setDeleteConfirm(null);
         showToast('Deleted.',T.muted);
       })
@@ -2833,6 +3047,39 @@ function StaffPanel({ user, perms, appeals, setAppeals, apps, setApps, tickets, 
       status==="approved"?T.green:T.red
     );
     showToast(status==="approved"?"Application approved — assigning Settlers role...":"Application denied.",status==="approved"?T.green:T.red);
+  }
+
+  function reviewStaffApp(id,status) {
+    const app=staffApps.find(a=>a.id===id);
+    const note=reviewNote[`sa_${id}`]||null;
+    fetch(`${BACKEND_URL}/api/staff-applications/${id}`,{
+      method:"PATCH", credentials:"include",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ status, reviewer_note:note }),
+    }).catch(()=>{});
+    setStaffApps(p=>p.map(a=>a.id===id?{...a,status,reviewer:user.username,reviewNote:note}:a));
+    setReviewNote(p=>({...p,[`sa_${id}`]:""}));
+    logAction(`${user.username} ${status} staff application from ${app?.player}`);
+    pushNotif("staffapp",
+      status==="approved"?"✅ Staff application approved!":"❌ Staff application denied.",
+      `${app?.player}`,
+      status==="approved"?T.green:T.red
+    );
+    showToast(status==="approved"?"Staff application approved.":"Staff application denied.",status==="approved"?T.green:T.red);
+  }
+
+  function toggleStaffApps() {
+    const newState = !staffAppsOpen;
+    fetch(`${BACKEND_URL}/api/staff-applications/toggle`,{
+      method:"PATCH", credentials:"include",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ open: newState }),
+    }).then(r=>r.ok?r.json():Promise.reject())
+      .then(()=>{
+        setStaffAppsOpen(newState);
+        showToast(newState?"Staff applications opened.":"Staff applications closed.",newState?T.green:T.amber);
+      })
+      .catch(()=>showToast("Failed to toggle staff apps.",T.red));
   }
 
   function postAnnouncement() {
@@ -2901,11 +3148,13 @@ function StaffPanel({ user, perms, appeals, setAppeals, apps, setApps, tickets, 
 
   const pendingA=appeals.filter(a=>a.status==="pending").length;
   const pendingP=apps.filter(a=>a.status==="pending").length;
+  const pendingS=staffApps.filter(a=>a.status==="pending").length;
   const openT=tickets.filter(t=>t.status==="open").length;
 
   const TABS=[
     ["appeals",`Appeals (${pendingA})`],
     ...(perms.canApps?[["apps",`Applications (${pendingP})`]]:[]),
+    ...(perms.canApps?[["staffapps",`Staff Apps (${pendingS})`]]:[]),
     ...(perms.canAppeals?[["tickets",`Tickets (${openT})`]]:[]),
     ...(perms.canAnnounce?[["announce","Announcements"]]:[]),
     ...(perms.canAnnounce?[["rules","Rules Editor"]]:[]),
@@ -3137,6 +3386,126 @@ function StaffPanel({ user, perms, appeals, setAppeals, apps, setApps, tickets, 
                             <input value={reviewNote[a.id]||""} onChange={e=>setReviewNote(p=>({...p,[a.id]:e.target.value}))} placeholder="Add a review note (optional)..." style={{ flex:1, minWidth:200, background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"7px 10px", borderRadius:4, fontSize:12, outline:"none", fontFamily:FU }}/>
                             <button onClick={()=>reviewApp(a.id,"approved")} style={{ background:T.greenBg, border:`1px solid ${T.green}40`, color:T.greenLight, padding:"7px 16px", borderRadius:4, fontSize:12, fontWeight:700, cursor:"pointer" }}>✓ Approve</button>
                             <button onClick={()=>reviewApp(a.id,"denied")} style={{ background:T.redBg, border:`1px solid ${T.red}40`, color:T.redLight, padding:"7px 16px", borderRadius:4, fontSize:12, fontWeight:700, cursor:"pointer" }}>✕ Deny</button>
+                          </div>
+                        )}
+                        {a.reviewer && a.status!=="pending" && (
+                          <div style={{ borderTop:`1px solid ${T.border}`, paddingTop:10, fontSize:12, color:T.muted }}>
+                            Reviewed by <span style={{ color:statusColor, fontWeight:600 }}>{a.reviewer}</span>
+                            {a.reviewNote && <span> — "{a.reviewNote}"</span>}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* STAFF APPLICATIONS */}
+      {tab==="staffapps" && perms.canApps && (() => {
+        const STAFF_APP_FIELDS = [
+          ["Age", "age"],
+          ["Discord Tag", "discord_tag"],
+          ["Timezone & Availability", "timezone_availability"],
+          ["Hours Per Week", "hours_per_week"],
+          ["Prior Staff Experience", "prior_experience"],
+          ["RP Experience", "rp_experience"],
+          ["RedM Experience", "redm_experience"],
+          ["Read Server Rules", "read_rules"],
+          ["What is Serious Roleplay", "what_is_serious_rp"],
+          ["Why Staff", "why_staff"],
+          ["Good Fit", "good_fit"],
+          ["Handle RDM Report", "handle_rdm"],
+          ["Handle Discord Argument", "handle_discord_argument"],
+          ["Valentine Scenario", "scenario_valentine"],
+          ["Metagaming Scenario", "scenario_metagaming"],
+          ["Dr. Whitaker Scenario", "scenario_dr_whitaker"],
+          ["Deputy Clark Scenario", "scenario_deputy_clark"],
+          ["Suspect Staff Abuse", "suspect_staff_abuse"],
+          ["New Player Breaking Character", "new_player_breaking_character"],
+          ["Peak Time Priority", "peak_time_priority"],
+          ["Code of Conduct", "agree_code_of_conduct"],
+          ["Signature", "signature"],
+          ["Other Commitments", "other_commitments"],
+          ["Understands Patience/Maturity", "understand_patience"],
+          ["Why Pick You", "why_pick_you"],
+        ];
+        const filteredStaffApps = staffApps.filter(a => {
+          if (staffAppStatusFilter !== "all" && a.status !== staffAppStatusFilter) return false;
+          if (staffAppSearch.trim()) {
+            const q = staffAppSearch.toLowerCase();
+            return (a.player||"").toLowerCase().includes(q) || (a.discord_tag||"").toLowerCase().includes(q);
+          }
+          return true;
+        });
+        const counts = { all: staffApps.length, pending: staffApps.filter(a=>a.status==="pending").length, approved: staffApps.filter(a=>a.status==="approved").length, denied: staffApps.filter(a=>a.status==="denied").length };
+        return (
+          <div>
+            {/* Toggle + Filter bar */}
+            <div style={{ display:"flex", gap:10, marginBottom:14, flexWrap:"wrap", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+                {[["all","All"],["pending","Pending"],["approved","Approved"],["denied","Denied"]].map(([val,lbl])=>(
+                  <button key={val} onClick={()=>setStaffAppStatusFilter(val)}
+                    style={{ background:staffAppStatusFilter===val?(val==="pending"?T.amberBg:val==="approved"?T.greenBg:val==="denied"?T.redBg:T.surface2):T.surface, color:staffAppStatusFilter===val?(val==="pending"?T.amber:val==="approved"?T.greenLight:val==="denied"?T.redLight:T.text):T.muted, border:`1px solid ${staffAppStatusFilter===val?(val==="pending"?T.amber+"50":val==="approved"?T.green+"50":val==="denied"?T.red+"50":T.border):T.border}`, padding:"4px 12px", borderRadius:4, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:FU }}>
+                    {lbl} <span style={{ opacity:0.7 }}>{counts[val]}</span>
+                  </button>
+                ))}
+                <input value={staffAppSearch} onChange={e=>setStaffAppSearch(e.target.value)} placeholder="Search by name, Discord..." style={{ minWidth:180, background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"5px 10px", borderRadius:4, fontSize:12, outline:"none", fontFamily:FU }}/>
+                <span style={{ fontSize:11, color:T.muted }}>{filteredStaffApps.length} app{filteredStaffApps.length!==1?"s":""}</span>
+              </div>
+              {perms.canUsers && (
+                <button onClick={toggleStaffApps} style={{ background:staffAppsOpen?T.greenBg:T.redBg, border:`1px solid ${staffAppsOpen?T.green:T.red}40`, color:staffAppsOpen?T.greenLight:T.redLight, padding:"6px 16px", borderRadius:5, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FU }}>
+                  {staffAppsOpen ? "Applications: OPEN" : "Applications: CLOSED"}
+                </button>
+              )}
+            </div>
+            {filteredStaffApps.length===0 && <div style={{ textAlign:"center", padding:"40px", color:T.muted, background:T.surface, borderRadius:8, border:`1px solid ${T.border}` }}>No {staffAppStatusFilter==="all"?"":staffAppStatusFilter} staff applications.</div>}
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {filteredStaffApps.map(a => {
+                const isExpanded = expandedStaffApp === a.id;
+                const statusColor = a.status==="pending"?T.amber:a.status==="approved"?T.green:T.red;
+                return (
+                  <div key={a.id} style={{ background:T.surface, border:`1px solid ${isExpanded?statusColor+"40":T.border}`, borderRadius:8, overflow:"hidden", transition:"border-color 0.15s" }}>
+                    <div onClick={()=>setExpandedStaffApp(isExpanded?null:a.id)}
+                      style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", cursor:"pointer", gap:12 }}
+                      onMouseEnter={e=>e.currentTarget.style.background=T.surface2}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <div style={{ display:"flex", alignItems:"center", gap:12, flex:1, minWidth:0 }}>
+                        <span style={{ fontSize:16, userSelect:"none" }}>{isExpanded?"▾":"▸"}</span>
+                        <div>
+                          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                            <span style={{ fontWeight:700, fontSize:14, fontFamily:FS, color:T.text }}>{a.player}</span>
+                            <span style={{ fontSize:11, color:T.muted }}>{a.discord_tag}</span>
+                            <span style={{ fontSize:11, color:T.muted }}>· {a.date}</span>
+                            <span style={{ fontSize:11, color:T.muted, background:T.surface2, padding:"1px 6px", borderRadius:3 }}>{a.hours_per_week} hrs/wk</span>
+                          </div>
+                          {!isExpanded && a.prior_experience && <div style={{ fontSize:12, color:T.muted, fontFamily:FB, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:500 }}>{a.prior_experience?.slice(0,100)}{a.prior_experience?.length>100?"...":""}</div>}
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                        {a.reviewer && <span style={{ fontSize:10, color:T.muted }}>by {a.reviewer}</span>}
+                        <Badge label={a.status} color={statusColor}/>
+                        {perms.canUsers && <button onClick={e=>{e.stopPropagation();setDeleteConfirm({type:"staffapp",id:a.id,label:`${a.player}'s staff application`});}} style={{ background:"transparent", border:`1px solid ${T.red}30`, color:T.red+"80", padding:"3px 8px", borderRadius:4, fontSize:10, cursor:"pointer" }}>🗑</button>}
+                      </div>
+                    </div>
+                    {isExpanded && (
+                      <div style={{ borderTop:`1px solid ${T.border}`, padding:"16px 18px" }}>
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px 24px", marginBottom:16 }}>
+                          {STAFF_APP_FIELDS.filter(([,k])=>a[k]).map(([label,k])=>(
+                            <div key={k} style={{ gridColumn: ["rp_experience","redm_experience","what_is_serious_rp","why_staff","good_fit","handle_rdm","handle_discord_argument","scenario_valentine","scenario_metagaming","scenario_dr_whitaker","scenario_deputy_clark","suspect_staff_abuse","new_player_breaking_character","peak_time_priority","why_pick_you"].includes(k)?"1 / -1":"auto" }}>
+                              <div style={{ fontSize:10, color:T.amber, fontWeight:700, letterSpacing:0.4, marginBottom:4 }}>{label.toUpperCase()}</div>
+                              <div style={{ fontSize:13, color:T.muted, fontFamily:FB, lineHeight:1.7, whiteSpace:"pre-wrap" }}>{a[k]}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {a.status==="pending" && (
+                          <div style={{ borderTop:`1px solid ${T.border}`, paddingTop:12, display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                            <input value={reviewNote[`sa_${a.id}`]||""} onChange={e=>setReviewNote(p=>({...p,[`sa_${a.id}`]:e.target.value}))} placeholder="Add a review note (optional)..." style={{ flex:1, minWidth:200, background:T.surface2, border:`1px solid ${T.border}`, color:T.text, padding:"7px 10px", borderRadius:4, fontSize:12, outline:"none", fontFamily:FU }}/>
+                            <button onClick={()=>reviewStaffApp(a.id,"approved")} style={{ background:T.greenBg, border:`1px solid ${T.green}40`, color:T.greenLight, padding:"7px 16px", borderRadius:4, fontSize:12, fontWeight:700, cursor:"pointer" }}>✓ Approve</button>
+                            <button onClick={()=>reviewStaffApp(a.id,"denied")} style={{ background:T.redBg, border:`1px solid ${T.red}40`, color:T.redLight, padding:"7px 16px", borderRadius:4, fontSize:12, fontWeight:700, cursor:"pointer" }}>✕ Deny</button>
                           </div>
                         )}
                         {a.reviewer && a.status!=="pending" && (
