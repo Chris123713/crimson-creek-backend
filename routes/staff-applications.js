@@ -253,54 +253,65 @@ router.post('/', requireAuth, async (req, res) => {
 </div>
 </body></html>`;
 
-        // Upload as file attachment with summary embed (same pattern as ticket transcripts)
-        const boundary = '----CrimsonCreekStaffApp' + Date.now();
         const fileBuffer = Buffer.from(html, 'utf-8');
         const totalQuestions = SECTIONS.reduce((n,s) => n + s.fields.length, 0);
-        const payloadJson = JSON.stringify({
-          embeds: [{
-            title: `📋 ${user.username}'s Staff Application`,
-            description: [
-              `**Age:** ${age}`,
-              `**Discord Tag:** ${discord_tag}`,
-              `**Timezone:** ${(timezone_availability||'N/A').slice(0,100)}`,
-              `**Hours/week:** ${hours_per_week}`,
-              `**Prior Experience:** ${(prior_experience||'N/A').slice(0,150)}${(prior_experience||'').length>150?'...':''}`,
-            ].join('\n'),
-            color: 0xc9963a,
-            fields: [
-              { name: 'Total Questions', value: String(totalQuestions), inline: true },
-              { name: 'Status', value: 'Pending Review', inline: true },
-            ],
-            footer: { text: 'Download the HTML file to read the full application' },
-            timestamp: new Date().toISOString(),
-          }],
-          attachments: [{ id: 0, filename: `staff-app-${id}-${user.username}.html` }],
-        });
 
-        const parts = [
-          `--${boundary}\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n${payloadJson}\r\n`,
-          `--${boundary}\r\nContent-Disposition: form-data; name="files[0]"; filename="staff-app-${id}-${user.username}.html"\r\nContent-Type: text/html\r\n\r\n`,
-        ];
-        const body = Buffer.concat([
-          Buffer.from(parts[0], 'utf-8'),
-          Buffer.from(parts[1], 'utf-8'),
-          fileBuffer,
-          Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8'),
-        ]);
-
+        // Step 1: Create the thread with a summary embed (JSON, no file)
         const threadRes = await fetch(`https://discord.com/api/v10/channels/${CHANNEL_ID}/threads`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bot ${BOT_TOKEN}`,
-            'Content-Type': `multipart/form-data; boundary=${boundary}`,
-          },
-          body,
+          headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: `${user.username}'s Staff Application`,
+            message: {
+              embeds: [{
+                title: `📋 ${user.username}'s Staff Application`,
+                description: [
+                  `**Age:** ${age}`,
+                  `**Discord Tag:** ${discord_tag}`,
+                  `**Timezone:** ${(timezone_availability||'N/A').slice(0,100)}`,
+                  `**Hours/week:** ${hours_per_week}`,
+                  `**Prior Experience:** ${(prior_experience||'N/A').slice(0,150)}${(prior_experience||'').length>150?'...':''}`,
+                ].join('\n'),
+                color: 0xc9963a,
+                fields: [
+                  { name: 'Total Questions', value: String(totalQuestions), inline: true },
+                  { name: 'Status', value: 'Pending Review', inline: true },
+                ],
+                footer: { text: 'Full application attached below — download the HTML file to review' },
+                timestamp: new Date().toISOString(),
+              }],
+            },
+          }),
         });
         const threadData = await threadRes.json();
         console.log(`[STAFF APP] Discord thread response status: ${threadRes.status}`);
         if (threadData.id) {
           await db('staff_applications').where('id', id).update({ thread_id: threadData.id });
+
+          // Step 2: Post the HTML file as a follow-up message inside the thread
+          const boundary = '----CrimsonCreekStaffApp' + Date.now();
+          const payloadJson = JSON.stringify({
+            content: '📄 **Full Staff Application** — Download and open this file to read all responses:',
+            attachments: [{ id: 0, filename: `staff-app-${id}-${user.username}.html` }],
+          });
+          const parts = [
+            `--${boundary}\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n${payloadJson}\r\n`,
+            `--${boundary}\r\nContent-Disposition: form-data; name="files[0]"; filename="staff-app-${id}-${user.username}.html"\r\nContent-Type: text/html\r\n\r\n`,
+          ];
+          const fileBody = Buffer.concat([
+            Buffer.from(parts[0], 'utf-8'),
+            Buffer.from(parts[1], 'utf-8'),
+            fileBuffer,
+            Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8'),
+          ]);
+          await fetch(`https://discord.com/api/v10/channels/${threadData.id}/messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bot ${BOT_TOKEN}`,
+              'Content-Type': `multipart/form-data; boundary=${boundary}`,
+            },
+            body: fileBody,
+          });
         } else {
           console.error('[STAFF APP] Thread creation failed:', JSON.stringify(threadData));
         }
