@@ -233,6 +233,23 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
     });
     await logAction('staff_application_reviewed', req.session.user.username, req.params.id, { status, reviewer_note });
 
+    // Assign Government staff role + update site role if approved
+    if (status === 'approved') {
+      await db('users').where('id', application.user_id).update({ role: 'government' });
+      await logAction('user_staff_promoted', req.session.user.id, application.user_id, { application_id: req.params.id });
+      try {
+        const fetch = require('node-fetch');
+        const STAFF_ROLE_ID = process.env.STAFF_ROLE_ID;
+        if (STAFF_ROLE_ID) {
+          const roleRes = await fetch(
+            `https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/${application.user_id}/roles/${STAFF_ROLE_ID}`,
+            { method: 'PUT', headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json' } }
+          );
+          console.log(`[ROLE] Staff role assign status: ${roleRes.status}`);
+        }
+      } catch (e) { console.error('Failed to assign staff Discord role:', e); }
+    }
+
     // DM the applicant
     try {
       const fetch = require('node-fetch');
@@ -254,10 +271,11 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
             embeds: [{
               title: isApproved ? '✅ Staff Application Approved' : '❌ Staff Application Denied',
               description: isApproved
-                ? 'Congratulations! Your staff application has been **approved**. Welcome to the team! 🤠'
+                ? 'Congratulations! Your staff application has been **approved**! You have been given the **Government** staff role. Welcome to the Crimson Creek staff team! 🤠'
                 : 'Your staff application has been **denied**. Thank you for your interest.',
               color: isApproved ? 0x4a9e4a : 0xe74c3c,
               fields: [
+                ...(isApproved ? [{ name: 'Staff Role Assigned', value: 'Government — you now have access to the staff panel.', inline: false }] : []),
                 ...(reviewer_note ? [{ name: 'Staff Note', value: reviewer_note, inline: false }] : []),
               ],
               footer: { text: 'Crimson Creek RP' },
@@ -276,7 +294,7 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
             embeds: [{
               title: isApproved ? 'Staff Application Approved' : 'Staff Application Denied',
               description: isApproved
-                ? `**${application.player}** has been approved as staff!`
+                ? `**${application.player}** has been approved as staff and given the **Government** role!`
                 : `**${application.player}**'s staff application has been denied.`,
               color: isApproved ? 0x4a9e4a : 0xe74c3c,
               fields: [

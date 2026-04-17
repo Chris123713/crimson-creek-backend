@@ -3493,11 +3493,11 @@ function StaffPanel({ user, perms, appeals, setAppeals, apps, setApps, tickets, 
                     </div>
                     {isExpanded && (
                       <div style={{ borderTop:`1px solid ${T.border}`, padding:"16px 18px" }}>
-                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px 24px", marginBottom:16 }}>
+                        <div style={{ display:"flex", flexDirection:"column", gap:16, marginBottom:16 }}>
                           {STAFF_APP_FIELDS.filter(([,k])=>a[k]).map(([label,k])=>(
-                            <div key={k} style={{ gridColumn: ["rp_experience","redm_experience","what_is_serious_rp","why_staff","good_fit","handle_rdm","handle_discord_argument","scenario_valentine","scenario_metagaming","scenario_dr_whitaker","scenario_deputy_clark","suspect_staff_abuse","new_player_breaking_character","peak_time_priority","why_pick_you"].includes(k)?"1 / -1":"auto" }}>
-                              <div style={{ fontSize:10, color:T.amber, fontWeight:700, letterSpacing:0.4, marginBottom:4 }}>{label.toUpperCase()}</div>
-                              <div style={{ fontSize:13, color:T.muted, fontFamily:FB, lineHeight:1.7, whiteSpace:"pre-wrap" }}>{a[k]}</div>
+                            <div key={k} style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:6, padding:"12px 14px" }}>
+                              <div style={{ fontSize:10, color:T.amber, fontWeight:700, letterSpacing:0.4, marginBottom:6 }}>{label.toUpperCase()}</div>
+                              <div style={{ fontSize:13, color:T.text, fontFamily:FB, lineHeight:1.8, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{a[k]}</div>
                             </div>
                           ))}
                         </div>

@@ -219,11 +219,12 @@ router.patch('/:id', requireAuth, requirePermission('canReviewApplications'), as
             embeds: [{
               title: isApproved ? '✅ Whitelist Application Approved' : '❌ Whitelist Application Denied',
               description: isApproved
-                ? 'Congratulations! Your whitelist application has been **approved**. Welcome to Crimson Creek RP! 🤠'
+                ? 'Congratulations! Your whitelist application has been **approved**! You have been given the **Settlers** (Whitelisted) role. Welcome to Crimson Creek RP! 🤠'
                 : 'Your whitelist application has been **denied**. You are welcome to apply again in the future.',
               color: isApproved ? 0x4a9e4a : 0xe74c3c,
               fields: [
                 { name: 'Discord Tag', value: application.player || 'N/A', inline: true },
+                ...(isApproved ? [{ name: 'Whitelisted Role Assigned', value: 'Settlers — you now have access to the server.', inline: false }] : []),
                 ...(reviewer_note ? [{ name: 'Staff Note', value: reviewer_note, inline: false }] : []),
               ],
               footer: { text: 'Crimson Creek RP' },
