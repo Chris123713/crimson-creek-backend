@@ -169,119 +169,138 @@ router.post('/', requireAuth, async (req, res) => {
       const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
       const CHANNEL_ID = process.env.STAFF_APPS_CHANNEL_ID;
       if (BOT_TOKEN && CHANNEL_ID) {
-        const cap = (str, n) => str && str.length > n ? str.substring(0, n) + '...' : (str || 'N/A');
+        const esc = (s) => (s||'N/A').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+        const submittedAt = new Date().toLocaleString();
 
-        const embeds = [
-          {
+        // Build all Q&A sections for the HTML
+        const SECTIONS = [
+          { title: 'Personal Information', fields: [
+            ['Age', age], ['Discord Tag', discord_tag],
+            ['Timezone & Availability', timezone_availability],
+            ['Hours Per Week', hours_per_week],
+            ['Prior Staff Experience', prior_experience],
+          ]},
+          { title: 'Roleplay Experience', fields: [
+            ['RP Experience (any platform)', rp_experience],
+            ['RedM Experience', redm_experience],
+            ['Read & Understood Server Rules', read_rules],
+          ]},
+          { title: 'Knowledge & Motivation', fields: [
+            ['What is "serious roleplay"?', what_is_serious_rp],
+            ['Why do you want to be staff here?', why_staff],
+            ['What makes you a good fit for the team?', good_fit],
+          ]},
+          { title: 'Situational Questions', fields: [
+            ['A player reports RDM. How do you handle it?', handle_rdm],
+            ['Two players arguing in Discord VC and escalating. What do you do?', handle_discord_argument],
+          ]},
+          { title: 'Scenario Analysis', fields: [
+            ['Valentine Saloon — Identify every rule violation. Who broke what rules?', scenario_valentine],
+            ['Metagaming Scenario — What was wrong here?', scenario_metagaming],
+            ['Dr. Whitaker Scenario — Did Miles break any rules?', scenario_dr_whitaker],
+            ['Deputy Clark Scenario — What rules were broken and how?', scenario_deputy_clark],
+          ]},
+          { title: 'Staff Readiness', fields: [
+            ['You suspect a staff member is abusing powers. What\'s your response?', suspect_staff_abuse],
+            ['New player keeps breaking character. What\'s your approach?', new_player_breaking_character],
+            ['Peak time: multiple rule breaks at once. How do you prioritize?', peak_time_priority],
+          ]},
+          { title: 'Agreement & Final Questions', fields: [
+            ['Staff Code of Conduct', agree_code_of_conduct],
+            ['Signature', signature],
+            ['Commitments that may interfere with staff duties', other_commitments || 'None'],
+            ['Understands staff requires patience, maturity & fairness', understand_patience || 'N/A'],
+            ['Why should we pick you over others?', why_pick_you],
+          ]},
+        ];
+
+        const sectionsHtml = SECTIONS.map(s => `
+          <div style="margin-bottom:8px;">
+            <div style="background:linear-gradient(90deg,#c9963a20,transparent);padding:12px 16px;border-left:3px solid #c9963a;margin-bottom:2px;">
+              <div style="font-size:13px;font-weight:700;color:#c9963a;letter-spacing:1.5px;">${s.title.toUpperCase()}</div>
+            </div>
+            ${s.fields.map(([q,a]) => `
+              <div style="padding:14px 18px;border-bottom:1px solid #1a1714;">
+                <div style="font-size:11px;font-weight:700;color:#c9963a;letter-spacing:0.5px;margin-bottom:6px;">${esc(q).toUpperCase()}</div>
+                <div style="font-size:13px;color:#c4b9a8;line-height:1.8;white-space:pre-wrap;">${esc(a)}</div>
+              </div>
+            `).join('')}
+          </div>
+        `).join('');
+
+        const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Staff Application — ${esc(user.username)}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0d0b09;color:#e8dfd4;font-family:'Segoe UI',sans-serif;}</style></head>
+<body>
+<div style="max-width:850px;margin:0 auto;min-height:100vh;">
+  <div style="background:linear-gradient(135deg,#1a0e06ee,#0f0a0add);padding:32px;text-align:center;border-bottom:2px solid #c9963a40;">
+    <div style="font-size:10px;color:#c9963a;letter-spacing:5px;font-weight:700;margin-bottom:8px;">CRIMSON CREEK RP</div>
+    <div style="font-size:28px;font-weight:700;letter-spacing:2px;margin-bottom:6px;">STAFF APPLICATION</div>
+    <div style="width:60px;height:2px;background:linear-gradient(to right,transparent,#c9963a,transparent);margin:12px auto;"></div>
+    <div style="font-size:16px;color:#c9963a;font-weight:600;">${esc(user.username)}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#1a1714;border-bottom:1px solid #1a1714;">
+    <div style="background:#12100e;padding:14px;text-align:center;"><div style="font-size:10px;color:#6b6158;letter-spacing:1px;margin-bottom:4px;">APPLICANT</div><div style="font-size:13px;font-weight:600;color:#c9963a;">${esc(user.username)}</div></div>
+    <div style="background:#12100e;padding:14px;text-align:center;"><div style="font-size:10px;color:#6b6158;letter-spacing:1px;margin-bottom:4px;">DISCORD</div><div style="font-size:13px;font-weight:600;">${esc(discord_tag)}</div></div>
+    <div style="background:#12100e;padding:14px;text-align:center;"><div style="font-size:10px;color:#6b6158;letter-spacing:1px;margin-bottom:4px;">SUBMITTED</div><div style="font-size:12px;">${submittedAt}</div></div>
+  </div>
+  <div style="background:#12100e;">
+    ${sectionsHtml}
+  </div>
+  <div style="background:#0d0b09;padding:20px;text-align:center;border-top:1px solid #1a1714;">
+    <div style="font-size:11px;color:#6b6158;">Crimson Creek RP — Staff Application #${id} — Generated ${submittedAt}</div>
+  </div>
+</div>
+</body></html>`;
+
+        // Upload as file attachment with summary embed (same pattern as ticket transcripts)
+        const boundary = '----CrimsonCreekStaffApp' + Date.now();
+        const fileBuffer = Buffer.from(html, 'utf-8');
+        const totalQuestions = SECTIONS.reduce((n,s) => n + s.fields.length, 0);
+        const payloadJson = JSON.stringify({
+          embeds: [{
             title: `📋 ${user.username}'s Staff Application`,
             description: [
               `**Age:** ${age}`,
               `**Discord Tag:** ${discord_tag}`,
-              `**Timezone & Availability:** ${cap(timezone_availability, 500)}`,
-              `**Hours per week:** ${hours_per_week}`,
-              `**Prior staff experience:**\n${cap(prior_experience, 800)}`,
+              `**Timezone:** ${(timezone_availability||'N/A').slice(0,100)}`,
+              `**Hours/week:** ${hours_per_week}`,
+              `**Prior Experience:** ${(prior_experience||'N/A').slice(0,150)}${(prior_experience||'').length>150?'...':''}`,
             ].join('\n'),
             color: 0xc9963a,
+            fields: [
+              { name: 'Total Questions', value: String(totalQuestions), inline: true },
+              { name: 'Status', value: 'Pending Review', inline: true },
+            ],
+            footer: { text: 'Download the HTML file to read the full application' },
             timestamp: new Date().toISOString(),
-          },
-          {
-            title: 'Roleplay Experience',
-            description: [
-              `**RP Experience:**\n${cap(rp_experience, 1500)}`,
-              ``,
-              `**RedM Experience:**\n${cap(redm_experience, 1500)}`,
-              ``,
-              `**Read server rules:** ${read_rules}`,
-            ].join('\n'),
-            color: 0xc9963a,
-          },
-          {
-            title: 'Knowledge & Motivation',
-            description: [
-              `**What is "serious roleplay"?**\n${cap(what_is_serious_rp, 1200)}`,
-              ``,
-              `**Why do you want to be staff?**\n${cap(why_staff, 1200)}`,
-              ``,
-              `**What makes you a good fit?**\n${cap(good_fit, 1200)}`,
-            ].join('\n'),
-            color: 0xc9963a,
-          },
-          {
-            title: 'Situational Questions',
-            description: [
-              `**A player reports RDM. How do you handle it?**\n${cap(handle_rdm, 1200)}`,
-              ``,
-              `**Two players arguing in Discord VC. What do you do?**\n${cap(handle_discord_argument, 1200)}`,
-            ].join('\n'),
-            color: 0xc9963a,
-          },
-          {
-            title: 'Scenario Analysis (1/2)',
-            description: [
-              `**Valentine Saloon Scenario — Identify every rule violation:**\n${cap(scenario_valentine, 1800)}`,
-              ``,
-              `**Metagaming Scenario — What was wrong here?**\n${cap(scenario_metagaming, 1800)}`,
-            ].join('\n'),
-            color: 0xc9963a,
-          },
-          {
-            title: 'Scenario Analysis (2/2)',
-            description: [
-              `**Dr. Whitaker Scenario — Did Miles break any rules?**\n${cap(scenario_dr_whitaker, 1800)}`,
-              ``,
-              `**Deputy Clark Scenario — What rules were broken?**\n${cap(scenario_deputy_clark, 1800)}`,
-            ].join('\n'),
-            color: 0xc9963a,
-          },
-          {
-            title: 'Staff Readiness',
-            description: [
-              `**Suspect a staff member is abusing powers:**\n${cap(suspect_staff_abuse, 1000)}`,
-              ``,
-              `**New player keeps breaking character:**\n${cap(new_player_breaking_character, 1000)}`,
-              ``,
-              `**Peak time, multiple rule breaks — how do you prioritize?**\n${cap(peak_time_priority, 1000)}`,
-            ].join('\n'),
-            color: 0xc9963a,
-          },
-          {
-            title: 'Agreement & Final',
-            description: [
-              `**Code of Conduct:** ${agree_code_of_conduct}`,
-              `**Signature:** ${signature}`,
-              `**Other commitments:** ${other_commitments || 'None'}`,
-              `**Understands patience/maturity:** ${understand_patience || 'N/A'}`,
-              ``,
-              `**Why should we pick you?**\n${cap(why_pick_you, 1500)}`,
-            ].join('\n'),
-            color: 0xc9963a,
-            footer: { text: `Staff App #${id} — Crimson Creek RP` },
-          },
-        ];
+          }],
+          attachments: [{ id: 0, filename: `staff-app-${id}-${user.username}.html` }],
+        });
 
-        // Create thread with the first embed only
+        const parts = [
+          `--${boundary}\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n${payloadJson}\r\n`,
+          `--${boundary}\r\nContent-Disposition: form-data; name="files[0]"; filename="staff-app-${id}-${user.username}.html"\r\nContent-Type: text/html\r\n\r\n`,
+        ];
+        const body = Buffer.concat([
+          Buffer.from(parts[0], 'utf-8'),
+          Buffer.from(parts[1], 'utf-8'),
+          fileBuffer,
+          Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8'),
+        ]);
+
         const threadRes = await fetch(`https://discord.com/api/v10/channels/${CHANNEL_ID}/threads`, {
           method: 'POST',
-          headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: `${user.username}'s Staff Application`,
-            message: { embeds: [embeds[0]] },
-          }),
+          headers: {
+            'Authorization': `Bot ${BOT_TOKEN}`,
+            'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          },
+          body,
         });
         const threadData = await threadRes.json();
         console.log(`[STAFF APP] Discord thread response status: ${threadRes.status}`);
         if (threadData.id) {
           await db('staff_applications').where('id', id).update({ thread_id: threadData.id });
-
-          // Post remaining embeds as follow-up messages in the thread (max 10 embeds per message)
-          const remaining = embeds.slice(1);
-          if (remaining.length > 0) {
-            await fetch(`https://discord.com/api/v10/channels/${threadData.id}/messages`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ embeds: remaining }),
-            });
-          }
         } else {
           console.error('[STAFF APP] Thread creation failed:', JSON.stringify(threadData));
         }
