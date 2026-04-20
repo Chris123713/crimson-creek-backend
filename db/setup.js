@@ -117,6 +117,36 @@ async function setupDatabase() {
     t.datetime('created_at').defaultTo(knex.fn.now());
   });
 
+  // Defensively ensure ticket_participants exists — hasTable can report a
+  // stale true on Postgres if an earlier partial creation left debris.
+  try {
+    await knex('ticket_participants').count('* as c').first();
+  } catch (_) {
+    console.log('  ↳ ticket_participants missing — force-creating');
+    if (process.env.DATABASE_URL) {
+      await knex.raw(`
+        CREATE TABLE IF NOT EXISTS ticket_participants (
+          id SERIAL PRIMARY KEY,
+          ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+          user_id VARCHAR(255) NOT NULL,
+          added_by VARCHAR(255) NOT NULL,
+          added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(ticket_id, user_id)
+        )
+      `);
+    } else {
+      await knex.schema.createTable('ticket_participants', t => {
+        t.increments('id').primary();
+        t.integer('ticket_id').notNullable().references('id').inTable('tickets').onDelete('CASCADE');
+        t.string('user_id').notNullable();
+        t.string('added_by').notNullable();
+        t.datetime('added_at').defaultTo(knex.fn.now());
+        t.unique(['ticket_id', 'user_id']);
+      });
+    }
+    console.log('  ↳ Created table ticket_participants');
+  }
+
   // ── Migrate old single staff_reply rows into ticket_messages ─────────────
   {
     const legacyTickets = await knex('tickets')
