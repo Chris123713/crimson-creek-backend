@@ -117,6 +117,16 @@ async function setupDatabase() {
     t.datetime('created_at').defaultTo(knex.fn.now());
   });
 
+  // ── ticket_participants: extra players a staff member added to a ticket ──
+  await createIfMissing('ticket_participants', t => {
+    t.increments('id').primary();
+    t.integer('ticket_id').notNullable().references('id').inTable('tickets').onDelete('CASCADE');
+    t.string('user_id').notNullable();
+    t.string('added_by').notNullable();
+    t.datetime('added_at').defaultTo(knex.fn.now());
+    t.unique(['ticket_id', 'user_id']);
+  });
+
   // ── Migrate old single staff_reply rows into ticket_messages ─────────────
   {
     const legacyTickets = await knex('tickets')
