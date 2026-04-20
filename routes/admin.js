@@ -409,7 +409,16 @@ ticketRouter.patch('/:id/reply', requireAuth, requirePermission('canViewStaffPan
       .update({ staff_reply: reply.trim(), updated_at: new Date().toISOString() });
 
     await logAction('ticket_replied', user.username, req.params.id, {});
-    const message = await db('ticket_messages').where('id', msgId).first();
+    const message = await db('ticket_messages')
+      .leftJoin('users', 'ticket_messages.sender_id', 'users.id')
+      .select(
+        'ticket_messages.*',
+        'users.avatar as sender_avatar',
+        'users.discord_id as sender_discord_id',
+        'users.role as sender_role'
+      )
+      .where('ticket_messages.id', msgId)
+      .first();
     const updatedTicket = await db('tickets')
       .leftJoin('users', 'tickets.user_id', 'users.id')
       .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
