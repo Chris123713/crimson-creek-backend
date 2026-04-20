@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(node *)",
-      "Bash(awk -F: '$1 > 2716 && $1 < 3700 {print}')"
+      "Bash(awk -F: '$1 > 2716 && $1 < 3700 {print}')",
+      "Bash(awk 'NR==1197 {print length\\($0\\); print $0}' C:/Users/Chris/Desktop/crimson-creek-backend/Portal/index.html)"
     ]
   }
 }
