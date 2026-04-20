@@ -20,17 +20,10 @@ ticketRouter.get('/', requireAuth, async (req, res) => {
         .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
         .orderBy('tickets.updated_at', 'desc');
     } else {
-      // Players see tickets they opened OR were added to as participants
-      const participantTicketIds = await db('ticket_participants')
-        .where('user_id', user.id)
-        .pluck('ticket_id');
       tickets = await db('tickets')
         .leftJoin('users', 'tickets.user_id', 'users.id')
         .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
-        .where(qb => {
-          qb.where('tickets.user_id', user.id);
-          if (participantTicketIds.length) qb.orWhereIn('tickets.id', participantTicketIds);
-        })
+        .where('tickets.user_id', user.id)
         .orderBy('tickets.updated_at', 'desc');
     }
 
@@ -54,31 +47,10 @@ ticketRouter.get('/', requireAuth, async (req, res) => {
       if (!previewMap[p.ticket_id]) previewMap[p.ticket_id] = p;
     }
 
-    // Attach participants (users who were added to the ticket)
-    const partRows = ids.length
-      ? await db('ticket_participants')
-          .leftJoin('users', 'ticket_participants.user_id', 'users.id')
-          .whereIn('ticket_participants.ticket_id', ids)
-          .select(
-            'ticket_participants.ticket_id',
-            'ticket_participants.user_id',
-            'ticket_participants.added_by',
-            'users.username',
-            'users.avatar',
-            'users.discord_id'
-          )
-      : [];
-    const partMap = {};
-    for (const p of partRows) {
-      (partMap[p.ticket_id] = partMap[p.ticket_id] || []).push(p);
-    }
-
     const enriched = tickets.map(t => ({
       ...t,
       message_count: countMap[t.id] || 0,
       last_message: previewMap[t.id] || null,
-      participants: partMap[t.id] || [],
-      is_invited: t.user_id !== user.id && (partMap[t.id] || []).some(p => p.user_id === user.id),
     }));
 
     res.json(enriched);
@@ -96,11 +68,8 @@ ticketRouter.get('/:id', requireAuth, async (req, res) => {
       .first();
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
 
-    // Access check: staff | opener | invited participant
-    const isParticipant = await db('ticket_participants')
-      .where({ ticket_id: ticket.id, user_id: user.id })
-      .first();
-    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id && !isParticipant) {
+    // Players can only view their own ticket
+    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -115,20 +84,7 @@ ticketRouter.get('/:id', requireAuth, async (req, res) => {
       .where('ticket_messages.ticket_id', req.params.id)
       .orderBy('ticket_messages.created_at', 'asc');
 
-    const participants = await db('ticket_participants')
-      .leftJoin('users', 'ticket_participants.user_id', 'users.id')
-      .where('ticket_participants.ticket_id', ticket.id)
-      .select(
-        'ticket_participants.user_id',
-        'ticket_participants.added_by',
-        'ticket_participants.added_at',
-        'users.username',
-        'users.avatar',
-        'users.discord_id',
-        'users.role'
-      );
-
-    res.json({ ...ticket, messages, participants });
+    res.json({ ...ticket, messages });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -172,11 +128,8 @@ ticketRouter.post('/:id/message', requireAuth, async (req, res) => {
     const ticket = await db('tickets').where('id', req.params.id).first();
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
 
-    // Access check: staff | opener | invited participant
-    const isParticipant = await db('ticket_participants')
-      .where({ ticket_id: ticket.id, user_id: user.id })
-      .first();
-    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id && !isParticipant) {
+    // Players can only message on their own ticket
+    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -367,138 +320,6 @@ ticketRouter.patch('/:id/close', requireAuth, async (req, res) => {
         });
       } catch (whErr) { console.error('Ticket transcript failed:', whErr); }
     }
-
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ── PARTICIPANTS (staff adds players to an existing ticket) ────────────────
-
-// GET /api/tickets/:id/participants — list users added to a ticket
-ticketRouter.get('/:id/participants', requireAuth, async (req, res) => {
-  try {
-    const user = req.session.user;
-    const ticket = await db('tickets').where('id', req.params.id).first();
-    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-
-    const isParticipant = await db('ticket_participants')
-      .where({ ticket_id: ticket.id, user_id: user.id }).first();
-    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id && !isParticipant) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-
-    const rows = await db('ticket_participants')
-      .leftJoin('users', 'ticket_participants.user_id', 'users.id')
-      .where('ticket_participants.ticket_id', ticket.id)
-      .select(
-        'ticket_participants.user_id',
-        'ticket_participants.added_by',
-        'ticket_participants.added_at',
-        'users.username', 'users.avatar', 'users.discord_id', 'users.role'
-      );
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST /api/tickets/:id/participants — staff adds a player to the ticket
-ticketRouter.post('/:id/participants', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
-  try {
-    const { user_id } = req.body;
-    if (!user_id) return res.status(400).json({ error: 'user_id required' });
-
-    const ticket = await db('tickets').where('id', req.params.id).first();
-    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-
-    if (ticket.user_id === user_id) {
-      return res.status(400).json({ error: 'That user already opened this ticket' });
-    }
-
-    const target = await db('users').where('id', user_id).first();
-    if (!target) return res.status(404).json({ error: 'User not found' });
-
-    const existing = await db('ticket_participants')
-      .where({ ticket_id: ticket.id, user_id }).first();
-    if (existing) return res.status(400).json({ error: 'User already added' });
-
-    await db('ticket_participants').insert({
-      ticket_id: ticket.id,
-      user_id,
-      added_by: req.session.user.username,
-    });
-
-    // System message in the thread so everyone sees who was added
-    await db('ticket_messages').insert({
-      ticket_id: ticket.id,
-      sender_id: req.session.user.id,
-      sender_username: req.session.user.username,
-      is_staff: true,
-      body: `➕ Added ${target.username} to this ticket.`,
-    });
-
-    await db('tickets').where('id', ticket.id).update({ updated_at: new Date().toISOString() });
-    await logAction('ticket_participant_added', req.session.user.username, ticket.id, {
-      target_user_id: user_id, target_username: target.username,
-    });
-
-    const updatedTicket = await db('tickets')
-      .leftJoin('users', 'tickets.user_id', 'users.id')
-      .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
-      .where('tickets.id', ticket.id).first();
-
-    // Broadcast: everyone updates their ticket view; the invited user additionally
-    // gets a "you were added" notification (client-side filter on invitee_user_id).
-    broadcast(req.app, 'ticket_invite', {
-      ticket_id: ticket.id,
-      invitee_user_id: user_id,
-      invited_by: req.session.user.username,
-      ticket: updatedTicket,
-      subject: ticket.subject,
-    });
-    broadcast(req.app, 'update_ticket', { ticket: updatedTicket, sender_sid: req.sessionID });
-
-    res.json({ success: true, user_id, username: target.username });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// DELETE /api/tickets/:id/participants/:userId — staff removes a player
-ticketRouter.delete('/:id/participants/:userId', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
-  try {
-    const ticket = await db('tickets').where('id', req.params.id).first();
-    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-
-    const row = await db('ticket_participants')
-      .where({ ticket_id: ticket.id, user_id: req.params.userId }).first();
-    if (!row) return res.status(404).json({ error: 'Participant not found' });
-
-    const target = await db('users').where('id', req.params.userId).first();
-    const targetName = target?.username || req.params.userId;
-
-    await db('ticket_participants')
-      .where({ ticket_id: ticket.id, user_id: req.params.userId }).delete();
-
-    await db('ticket_messages').insert({
-      ticket_id: ticket.id,
-      sender_id: req.session.user.id,
-      sender_username: req.session.user.username,
-      is_staff: true,
-      body: `➖ Removed ${targetName} from this ticket.`,
-    });
-
-    await db('tickets').where('id', ticket.id).update({ updated_at: new Date().toISOString() });
-    await logAction('ticket_participant_removed', req.session.user.username, ticket.id, {
-      target_user_id: req.params.userId, target_username: targetName,
-    });
-
-    const updatedTicket = await db('tickets')
-      .leftJoin('users', 'tickets.user_id', 'users.id')
-      .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
-      .where('tickets.id', ticket.id).first();
-
-    broadcast(req.app, 'ticket_uninvite', {
-      ticket_id: ticket.id,
-      removed_user_id: req.params.userId,
-    });
-    broadcast(req.app, 'update_ticket', { ticket: updatedTicket, sender_sid: req.sessionID });
 
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

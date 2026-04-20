@@ -556,7 +556,6 @@ const BACKEND_URL = "https://api.crimsoncreekrp.com";
 
 function Portal({ user, onLogout }) {
   const [page,setPage]=useState("dashboard");
-  const [openTicketId,setOpenTicketId]=useState(null);
   const [toast,setToast]=useState(null);
   const [appeals,setAppeals]=useState(INIT_APPEALS);
   const [apps,setApps]=useState(INIT_APPS);
@@ -609,8 +608,6 @@ function Portal({ user, onLogout }) {
         subject:t.subject, category:t.category, body:t.body,
         status:t.status, date:new Date(t.created_at).toLocaleDateString(),
         author:t.user_username||t.user_id, staffReply:t.staff_reply||null,
-        user_username:t.user_username||null, user_id:t.user_id,
-        participants: t.participants || [], isInvited: !!t.is_invited,
         messages:[{ from:t.user_username||t.user_id, role:"player", text:t.body, time:new Date(t.created_at).toLocaleString() },
           ...(t.staff_reply?[{ from:"Staff", role:"staff", text:t.staff_reply, time:new Date(t.updated_at).toLocaleString() }]:[])],
       }))))
@@ -830,55 +827,6 @@ function Portal({ user, onLogout }) {
           }
         } catch(_) {}
       });
-      // ticket_invite — sent when staff adds a player to a ticket.
-      // Everyone receives it; only the invitee reacts with a notification.
-      es.addEventListener('ticket_invite', (e) => {
-        if (!active) return;
-        try {
-          const { ticket_id, invitee_user_id, invited_by, ticket, subject } = JSON.parse(e.data);
-          if (invitee_user_id !== user.id) return;
-
-          // Add the ticket to the player's list if not already present
-          if (ticket) {
-            setTickets(prev => {
-              if (prev.find(x => x._id === ticket.id)) return prev;
-              const mapped = {
-                id: `TKT-${String(ticket.id).padStart(3,'0')}`,
-                _id: ticket.id,
-                subject: ticket.subject,
-                category: ticket.category,
-                body: ticket.body,
-                status: ticket.status,
-                date: new Date(ticket.created_at).toLocaleDateString(),
-                author: ticket.user_username || ticket.user_id,
-                isInvited: true,
-                messages: [],
-              };
-              return [mapped, ...prev];
-            });
-          }
-
-          pushNotif(
-            'ticket',
-            `🎟️ You were added to a ticket by ${invited_by}`,
-            subject ? `"${subject}" — tap to open` : 'Tap to open',
-            T.blue,
-            { page: 'support', openTicketId: ticket_id }
-          );
-        } catch(_) {}
-      });
-
-      // ticket_uninvite — refresh tickets list so the removed ticket disappears
-      es.addEventListener('ticket_uninvite', (e) => {
-        if (!active) return;
-        try {
-          const { ticket_id, removed_user_id } = JSON.parse(e.data);
-          if (removed_user_id !== user.id) return;
-          setTickets(prev => prev.filter(x => x._id !== ticket_id));
-          pushNotif('ticket', '🚫 You were removed from a ticket', `Ticket #${ticket_id}`, T.muted);
-        } catch(_) {}
-      });
-
       es.addEventListener('new_appeal', (e) => {
         if (!active) return;
         try {
@@ -957,9 +905,9 @@ function Portal({ user, onLogout }) {
     return () => { active = false; if (es) es.close(); };
   }, [user?.id]);
 
-  function pushNotif(type, text, detail, color, nav) {
+  function pushNotif(type, text, detail, color) {
     playSound(selectedSound);
-    setNotifications(prev=>[{ id:Date.now(), type, text, detail, read:false, time:"Just now", color, nav: nav || null },...prev]);
+    setNotifications(prev=>[{ id:Date.now(), type, text, detail, read:false, time:"Just now", color },...prev]);
     setBellAnim(true);
     setTimeout(()=>setBellAnim(false), 1000);
   }
@@ -1157,12 +1105,7 @@ function Portal({ user, onLogout }) {
                 <div style={{ maxHeight:360, overflowY:"auto" }}>
                   {notifications.length===0 && <div style={{ padding:"28px", textAlign:"center", color:T.muted, fontSize:13 }}>No notifications.</div>}
                   {notifications.map(n=>(
-                    <div key={n.id} onClick={()=>{
-                        setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
-                        if (n.nav?.page) setPage(n.nav.page);
-                        if (n.nav?.openTicketId) setOpenTicketId(n.nav.openTicketId);
-                        if (n.nav) setShowNotifs(false);
-                      }}
+                    <div key={n.id} onClick={()=>setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x))}
                       style={{ padding:"12px 16px", borderBottom:`1px solid ${T.border}`, background:n.read?"transparent":T.surface2, cursor:"pointer", display:"flex", gap:10, alignItems:"flex-start" }}
                       onMouseEnter={e=>e.currentTarget.style.background=T.surface3}
                       onMouseLeave={e=>e.currentTarget.style.background=n.read?"transparent":T.surface2}>
@@ -1254,7 +1197,7 @@ function Portal({ user, onLogout }) {
           {page==="applications" && <AppsPage     user={user} perms={perms} apps={apps} setApps={setApps} showToast={showToast} logAction={logAction} pushNotif={pushNotif}/>}
           {page==="staff-apps"   && <StaffAppsPage user={user} perms={perms} staffApps={staffApps} setStaffApps={setStaffApps} staffAppsOpen={staffAppsOpen} showToast={showToast}/>}
           {page==="subscriptions"&& <SubsPage     user={user} perms={perms} sub={sub} showToast={showToast}/>}
-          {page==="support"      && <SupportPage  user={user} perms={perms} tickets={tickets} setTickets={setTickets} showToast={showToast} username={user.username} pushNotif={pushNotif} openTicketId={openTicketId} clearOpenTicketId={()=>setOpenTicketId(null)}/>}
+          {page==="support"      && <SupportPage  user={user} perms={perms} tickets={tickets} setTickets={setTickets} showToast={showToast} username={user.username} pushNotif={pushNotif}/>}
           {page==="staffpanel" && perms.canStaff && <StaffPanel user={user} perms={perms} appeals={appeals} setAppeals={setAppeals} apps={apps} setApps={setApps} tickets={tickets} setTickets={setTickets} announcements={announcements} setAnnouncements={setAnnouncements} bans={bans} setBans={setBans} rules={rules} setRules={setRules} activityLog={activityLog} activityLoading={activityLoading} showToast={showToast} logAction={logAction} pushNotif={pushNotif} fetchActivityLog={fetchActivityLog} staffApps={staffApps} setStaffApps={setStaffApps} staffAppsOpen={staffAppsOpen} setStaffAppsOpen={setStaffAppsOpen}/>}
         </div>
       </div>
@@ -2231,7 +2174,7 @@ function SubsPage({ user, perms, sub, showToast }) {
 }
 
 // ─── SUPPORT ──────────────────────────────────────────────────────────────────
-function SupportPage({ user, perms, tickets, setTickets, showToast, username, openTicketId, clearOpenTicketId }) {
+function SupportPage({ user, perms, tickets, setTickets, showToast, username }) {
   const [view,setView]=useState("list");
   const [selectedTicket,setSelectedTicket]=useState(null);
   const [form,setForm]=useState({ subject:"", category:"General", body:"" });
@@ -2239,36 +2182,6 @@ function SupportPage({ user, perms, tickets, setTickets, showToast, username, op
   const msgEndRef=useRef(null);
 
   useEffect(()=>{ if(msgEndRef.current) msgEndRef.current.scrollIntoView({ behavior:"smooth" }); },[selectedTicket]);
-
-  // Auto-open a ticket when a notification passes openTicketId in
-  useEffect(()=>{
-    if(!openTicketId) return;
-    const target = tickets.find(t => t._id === openTicketId);
-    if (!target) return;
-    setSelectedTicket(target);
-    setView("thread");
-    fetch(`${BACKEND_URL}/api/tickets/${openTicketId}`, { credentials:"include" })
-      .then(r=>r.ok?r.json():Promise.reject())
-      .then(data=>{
-        if (data.messages) {
-          const msgs = data.messages.map(m=>({
-            from: m.sender_username,
-            role: m.is_staff?"staff":"player",
-            text: m.body,
-            time: new Date(m.created_at).toLocaleString(),
-            _msgId: m.id,
-            discordId: m.sender_discord_id || null,
-            avatar: m.sender_avatar || null,
-            roleLabel: (ROLE_PERMS[m.sender_role]||{}).label || (m.is_staff ? "STAFF" : null),
-            roleColor: (ROLE_PERMS[m.sender_role]||{}).color || (m.is_staff ? "#3a7ab8" : "#c27c0e"),
-          }));
-          setTickets(p=>p.map(tk=>tk._id===openTicketId?{...tk,messages:msgs}:tk));
-          setSelectedTicket(prev=>prev&&prev._id===openTicketId?{...prev,messages:msgs}:prev);
-        }
-      })
-      .catch(()=>{})
-      .finally(()=>clearOpenTicketId && clearOpenTicketId());
-  },[openTicketId, tickets]);
 
   function submit() {
     if(!form.subject||!form.body){ showToast("Fill all fields.",T.red); return; }
@@ -2410,8 +2323,8 @@ function SupportPage({ user, perms, tickets, setTickets, showToast, username, op
 
       {view==="list" && (
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {tickets.filter(t => perms.canAppeals || t.author === username || t.isInvited).length===0 && <div style={{ textAlign:"center", padding:"48px", color:T.muted, background:T.surface, borderRadius:8, border:`1px solid ${T.border}` }}>No tickets yet.</div>}
-          {tickets.filter(t => perms.canAppeals || t.author === username || t.isInvited).map(t=>{
+          {tickets.filter(t => perms.canAppeals || t.author === username).length===0 && <div style={{ textAlign:"center", padding:"48px", color:T.muted, background:T.surface, borderRadius:8, border:`1px solid ${T.border}` }}>No tickets yet.</div>}
+          {tickets.filter(t => perms.canAppeals || t.author === username).map(t=>{
             const lastMsg=t.messages?.[t.messages.length-1];
             return (
               <div key={t.id} onClick={()=>{
@@ -2445,11 +2358,10 @@ function SupportPage({ user, perms, tickets, setTickets, showToast, username, op
                 onMouseLeave={e=>e.currentTarget.style.borderColor=t.status==="open"?T.green+"30":T.border}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10 }}>
                   <div style={{ flex:1 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5, flexWrap:"wrap" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
                       <span style={{ fontFamily:"monospace", fontSize:11, color:T.muted }}>{t.id}</span>
                       <span style={{ fontWeight:700, fontSize:14 }}>{t.subject}</span>
                       <span style={{ fontSize:11, color:T.muted, background:T.surface2, padding:"1px 6px", borderRadius:3 }}>{t.category}</span>
-                      {t.isInvited && <span style={{ fontSize:10, color:T.blue, background:T.blue+"20", border:`1px solid ${T.blue}40`, padding:"1px 6px", borderRadius:3, fontWeight:700, letterSpacing:0.5 }}>INVITED</span>}
                     </div>
                     {lastMsg && <div style={{ fontSize:12, color:T.muted, fontFamily:FB }}><span style={{ color:lastMsg.role==="staff"?T.blue:T.amber, fontWeight:600 }}>{lastMsg.from}:</span> {lastMsg.text.slice(0,80)}{lastMsg.text.length>80?"...":""}</div>}
                     <div style={{ fontSize:11, color:T.muted, marginTop:4 }}>{t.messages?.length||0} message{t.messages?.length!==1?"s":""} · {t.date}</div>
@@ -2493,10 +2405,6 @@ function StaffTicketItem({ t, user, perms, setTickets, logAction, showToast, pus
   const [open, setOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [loadingMsgs, setLoadingMsgs] = useState(false);
-  const [participants, setParticipants] = useState(t.participants || []);
-  const [showAddPlayer, setShowAddPlayer] = useState(false);
-  const [playerSearch, setPlayerSearch] = useState("");
-  const [allPlayers, setAllPlayers] = useState([]);
   const lastMsg = t.messages?.[t.messages.length - 1];
 
   function toggleOpen() {
@@ -2522,48 +2430,10 @@ function StaffTicketItem({ t, user, perms, setTickets, logAction, showToast, pus
             }));
             setTickets(p => p.map(tk => tk._id === t._id ? { ...tk, messages: msgs } : tk));
           }
-          if (Array.isArray(data.participants)) setParticipants(data.participants);
         })
         .catch(() => {})
         .finally(() => setLoadingMsgs(false));
     }
-  }
-
-  function loadPlayers() {
-    if (allPlayers.length > 0) return;
-    fetch(`${BACKEND_URL}/api/admin/players`, { credentials: "include" })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(setAllPlayers)
-      .catch(() => showToast("Failed to load players.", T.red));
-  }
-
-  function addParticipant(playerId, playerName) {
-    fetch(`${BACKEND_URL}/api/tickets/${t._id}/participants`, {
-      method: "POST", credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: playerId }),
-    })
-      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
-      .then(() => {
-        setParticipants(p => [...p, { user_id: playerId, username: playerName, added_by: user.username }]);
-        setShowAddPlayer(false);
-        setPlayerSearch("");
-        showToast(`Added ${playerName} to ticket.`, T.green);
-      })
-      .catch(err => showToast(err?.error || "Failed to add player.", T.red));
-  }
-
-  function removeParticipant(playerId, playerName) {
-    if (!confirm(`Remove ${playerName} from this ticket?`)) return;
-    fetch(`${BACKEND_URL}/api/tickets/${t._id}/participants/${playerId}`, {
-      method: "DELETE", credentials: "include",
-    })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(() => {
-        setParticipants(p => p.filter(x => x.user_id !== playerId));
-        showToast(`Removed ${playerName}.`, T.muted);
-      })
-      .catch(() => showToast("Failed to remove.", T.red));
   }
 
   function sendStaffReply() {
@@ -2615,55 +2485,6 @@ function StaffTicketItem({ t, user, perms, setTickets, logAction, showToast, pus
       </div>
       {open && (
         <div style={{ borderTop: `1px solid ${T.border}`, padding: "14px 16px", background: T.surface2 }}>
-          {/* ── Participants row ───────────────────────────────────────── */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 6, padding: "8px 10px" }}>
-            <span style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: 0.5 }}>IN THIS TICKET</span>
-            <span style={{ fontSize: 11, background: T.amberBg, color: T.amber, border: `1px solid ${T.amber}40`, padding: "2px 8px", borderRadius: 3, fontWeight: 600 }}>
-              {t.user_username || t.author || "Opener"} · OPENER
-            </span>
-            {participants.map(p => (
-              <span key={p.user_id} style={{ fontSize: 11, background: T.blue + "18", color: T.blue, border: `1px solid ${T.blue}40`, padding: "2px 4px 2px 8px", borderRadius: 3, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                {p.username || p.user_id}
-                <button onClick={() => removeParticipant(p.user_id, p.username || p.user_id)} title="Remove" style={{ background: "transparent", border: "none", color: T.red, cursor: "pointer", fontSize: 12, padding: "0 2px", lineHeight: 1 }}>×</button>
-              </span>
-            ))}
-            <button onClick={() => { setShowAddPlayer(true); loadPlayers(); }} style={{ background: T.blue, color: "#fff", border: "none", padding: "4px 10px", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer", marginLeft: "auto" }}>+ Add Player</button>
-          </div>
-
-          {/* ── Add-player modal ───────────────────────────────────────── */}
-          {showAddPlayer && (
-            <div onClick={() => setShowAddPlayer(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div onClick={e => e.stopPropagation()} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: 20, width: 420, maxHeight: "70vh", display: "flex", flexDirection: "column" }}>
-                <div style={{ fontFamily: FS, fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Add Player to Ticket</div>
-                <div style={{ fontSize: 11, color: T.muted, marginBottom: 12 }}>Search by username or Discord ID.</div>
-                <input autoFocus value={playerSearch} onChange={e => setPlayerSearch(e.target.value)} placeholder="Type to search..." style={{ background: T.surface2, border: `1px solid ${T.border}`, color: T.text, padding: "9px 12px", borderRadius: 5, fontSize: 13, outline: "none", marginBottom: 10, fontFamily: FU }} />
-                <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-                  {allPlayers
-                    .filter(p => p.id !== t.user_id && !participants.some(x => x.user_id === p.id))
-                    .filter(p => {
-                      const q = playerSearch.trim().toLowerCase();
-                      if (!q) return true;
-                      return (p.username || "").toLowerCase().includes(q) || (p.discord_id || "").includes(q);
-                    })
-                    .slice(0, 50)
-                    .map(p => (
-                      <div key={p.id} onClick={() => addParticipant(p.id, p.username)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: T.surface2, border: `1px solid ${T.border}`, borderRadius: 5, cursor: "pointer" }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = T.blue}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = T.border}>
-                        <Avatar user={{ username: p.username, id: p.discord_id, avatar: p.avatar }} size={28} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>{p.username}</div>
-                          <div style={{ fontSize: 10, color: T.muted }}>{p.role}</div>
-                        </div>
-                      </div>
-                    ))}
-                  {allPlayers.length === 0 && <div style={{ textAlign: "center", color: T.muted, padding: 20, fontSize: 12 }}>Loading players…</div>}
-                </div>
-                <button onClick={() => setShowAddPlayer(false)} style={{ marginTop: 10, background: T.surface2, border: `1px solid ${T.border}`, color: T.muted, padding: "8px", borderRadius: 5, fontSize: 12, cursor: "pointer" }}>Cancel</button>
-              </div>
-            </div>
-          )}
-
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12, maxHeight: 300, overflowY: "auto" }}>
             {(t.messages || []).map((m, i) => {
               const isStaff = m.role === "staff";
