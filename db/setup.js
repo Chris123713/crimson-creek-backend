@@ -255,6 +255,22 @@ async function setupDatabase() {
     }
   }
 
+  // Add claim columns to tickets
+  {
+    const has = await knex.schema.hasColumn('tickets', 'claimed_by');
+    if (!has) {
+      await knex.schema.table('tickets', t => t.string('claimed_by'));
+      console.log('  ↳ Added column tickets.claimed_by');
+    }
+  }
+  {
+    const has = await knex.schema.hasColumn('tickets', 'claimed_at');
+    if (!has) {
+      await knex.schema.table('tickets', t => t.datetime('claimed_at'));
+      console.log('  ↳ Added column tickets.claimed_at');
+    }
+  }
+
   // Add discord_message_id to announcements for two-way sync
   {
     const has = await knex.schema.hasColumn('announcements', 'discord_message_id');

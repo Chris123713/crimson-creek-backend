@@ -8,23 +8,37 @@ const adminRouter = express.Router();
 
 // ── TICKETS ───────────────────────────────────────────────────────────────────
 
-// GET /api/tickets — list tickets (staff sees all, players see own only)
+// GET /api/tickets — list tickets (staff sees all, players see own + ones they participate in)
 // Each ticket is enriched with a message_count so the UI can show "X msgs"
 ticketRouter.get('/', requireAuth, async (req, res) => {
   try {
     const user = req.session.user;
+    const baseQuery = () => db('tickets')
+      .leftJoin('users', 'tickets.user_id', 'users.id')
+      .leftJoin('users as claimer', 'tickets.claimed_by', 'claimer.id')
+      .select(
+        'tickets.*',
+        'users.username as user_username',
+        'users.avatar as user_avatar',
+        'claimer.username as claimed_by_username',
+        'claimer.avatar as claimed_by_avatar',
+        'claimer.discord_id as claimed_by_discord_id',
+      )
+      .orderBy('tickets.updated_at', 'desc');
+
     let tickets;
     if (user.permissions.canViewStaffPanel) {
-      tickets = await db('tickets')
-        .leftJoin('users', 'tickets.user_id', 'users.id')
-        .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
-        .orderBy('tickets.updated_at', 'desc');
+      tickets = await baseQuery();
     } else {
-      tickets = await db('tickets')
-        .leftJoin('users', 'tickets.user_id', 'users.id')
-        .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
-        .where('tickets.user_id', user.id)
-        .orderBy('tickets.updated_at', 'desc');
+      // Player sees: their own tickets OR tickets they were added to as a participant
+      const participantTicketIds = await db('ticket_participants')
+        .where('user_id', user.id)
+        .pluck('ticket_id');
+      tickets = await baseQuery()
+        .where(function () {
+          this.where('tickets.user_id', user.id);
+          if (participantTicketIds.length) this.orWhereIn('tickets.id', participantTicketIds);
+        });
     }
 
     // Attach message counts
@@ -47,10 +61,31 @@ ticketRouter.get('/', requireAuth, async (req, res) => {
       if (!previewMap[p.ticket_id]) previewMap[p.ticket_id] = p;
     }
 
+    // Attach participants list per ticket
+    const participantRows = ids.length
+      ? await db('ticket_participants')
+          .leftJoin('users', 'ticket_participants.user_id', 'users.id')
+          .whereIn('ticket_id', ids)
+          .select(
+            'ticket_participants.ticket_id',
+            'ticket_participants.user_id',
+            'ticket_participants.added_by',
+            'ticket_participants.added_at',
+            'users.username',
+            'users.avatar',
+            'users.discord_id',
+          )
+      : [];
+    const participantsByTicket = {};
+    for (const p of participantRows) {
+      (participantsByTicket[p.ticket_id] ||= []).push(p);
+    }
+
     const enriched = tickets.map(t => ({
       ...t,
       message_count: countMap[t.id] || 0,
       last_message: previewMap[t.id] || null,
+      participants: participantsByTicket[t.id] || [],
     }));
 
     res.json(enriched);
@@ -63,13 +98,34 @@ ticketRouter.get('/:id', requireAuth, async (req, res) => {
     const user = req.session.user;
     const ticket = await db('tickets')
       .leftJoin('users', 'tickets.user_id', 'users.id')
-      .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
+      .leftJoin('users as claimer', 'tickets.claimed_by', 'claimer.id')
+      .select(
+        'tickets.*',
+        'users.username as user_username',
+        'users.avatar as user_avatar',
+        'claimer.username as claimed_by_username',
+        'claimer.avatar as claimed_by_avatar',
+        'claimer.discord_id as claimed_by_discord_id',
+      )
       .where('tickets.id', req.params.id)
       .first();
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
 
-    // Players can only view their own ticket
-    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id) {
+    const participants = await db('ticket_participants')
+      .leftJoin('users', 'ticket_participants.user_id', 'users.id')
+      .where('ticket_id', req.params.id)
+      .select(
+        'ticket_participants.user_id',
+        'ticket_participants.added_by',
+        'ticket_participants.added_at',
+        'users.username',
+        'users.avatar',
+        'users.discord_id',
+      );
+
+    // Access: owner, staff, or participant
+    const isParticipant = participants.some(p => p.user_id === user.id);
+    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id && !isParticipant) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -84,7 +140,7 @@ ticketRouter.get('/:id', requireAuth, async (req, res) => {
       .where('ticket_messages.ticket_id', req.params.id)
       .orderBy('ticket_messages.created_at', 'asc');
 
-    res.json({ ...ticket, messages });
+    res.json({ ...ticket, messages, participants });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -128,9 +184,12 @@ ticketRouter.post('/:id/message', requireAuth, async (req, res) => {
     const ticket = await db('tickets').where('id', req.params.id).first();
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
 
-    // Players can only message on their own ticket
+    // Players can message on their own ticket OR if added as a participant
     if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id) {
-      return res.status(403).json({ error: 'Forbidden' });
+      const isParticipant = await db('ticket_participants')
+        .where({ ticket_id: ticket.id, user_id: user.id })
+        .first();
+      if (!isParticipant) return res.status(403).json({ error: 'Forbidden' });
     }
 
     const isStaff = !!user.permissions.canViewStaffPanel;
@@ -538,6 +597,164 @@ adminRouter.post('/assign-settler-role', requireAuth, requirePermission('canView
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── PARTICIPANTS ────────────────────────────────────────────────────────────
+// Helper: re-fetch ticket + claim/participant joins to broadcast a fresh copy
+async function loadTicketForBroadcast(ticketId) {
+  const ticket = await db('tickets')
+    .leftJoin('users', 'tickets.user_id', 'users.id')
+    .leftJoin('users as claimer', 'tickets.claimed_by', 'claimer.id')
+    .select(
+      'tickets.*',
+      'users.username as user_username',
+      'users.avatar as user_avatar',
+      'claimer.username as claimed_by_username',
+      'claimer.avatar as claimed_by_avatar',
+      'claimer.discord_id as claimed_by_discord_id',
+    )
+    .where('tickets.id', ticketId)
+    .first();
+  if (!ticket) return null;
+  const participants = await db('ticket_participants')
+    .leftJoin('users', 'ticket_participants.user_id', 'users.id')
+    .where('ticket_id', ticketId)
+    .select(
+      'ticket_participants.user_id',
+      'ticket_participants.added_by',
+      'ticket_participants.added_at',
+      'users.username',
+      'users.avatar',
+      'users.discord_id',
+    );
+  return { ...ticket, participants };
+}
+
+// GET /api/tickets/:id/participants
+ticketRouter.get('/:id/participants', requireAuth, async (req, res) => {
+  try {
+    const user = req.session.user;
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    const participants = await db('ticket_participants')
+      .leftJoin('users', 'ticket_participants.user_id', 'users.id')
+      .where('ticket_id', req.params.id)
+      .select(
+        'ticket_participants.user_id',
+        'ticket_participants.added_by',
+        'ticket_participants.added_at',
+        'users.username',
+        'users.avatar',
+        'users.discord_id',
+      );
+    const isParticipant = participants.some(p => p.user_id === user.id);
+    if (!user.permissions.canViewStaffPanel && ticket.user_id !== user.id && !isParticipant) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    res.json(participants);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/tickets/:id/participants — staff adds a player
+ticketRouter.post('/:id/participants', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: 'user_id required' });
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    const target = await db('users').where('id', user_id).first();
+    if (!target) return res.status(404).json({ error: 'User not found (must have logged in at least once)' });
+    if (target.id === ticket.user_id) return res.status(400).json({ error: 'That player is already the ticket owner' });
+
+    try {
+      await db('ticket_participants').insert({
+        ticket_id: ticket.id,
+        user_id: target.id,
+        added_by: req.session.user.id,
+      });
+    } catch (e) {
+      if (String(e.message || '').toLowerCase().includes('unique')) {
+        return res.status(400).json({ error: 'Player is already in this ticket' });
+      }
+      throw e;
+    }
+
+    await logAction('ticket_participant_added', req.session.user.username, ticket.id, { added_user: target.username });
+    const fresh = await loadTicketForBroadcast(ticket.id);
+    broadcast(req.app, 'update_ticket', { ticket: fresh, sender_sid: req.sessionID });
+    res.json({ success: true, ticket: fresh });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/tickets/:id/participants/:userId — staff removes a player
+ticketRouter.delete('/:id/participants/:userId', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
+  try {
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    const removed = await db('ticket_participants')
+      .where({ ticket_id: ticket.id, user_id: req.params.userId })
+      .delete();
+    if (!removed) return res.status(404).json({ error: 'Participant not found' });
+    await logAction('ticket_participant_removed', req.session.user.username, ticket.id, { removed_user_id: req.params.userId });
+    const fresh = await loadTicketForBroadcast(ticket.id);
+    broadcast(req.app, 'update_ticket', { ticket: fresh, sender_sid: req.sessionID });
+    res.json({ success: true, ticket: fresh });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── CLAIMS ─────────────────────────────────────────────────────────────────
+// PATCH /api/tickets/:id/claim — staff claims a ticket
+// If already claimed by someone else, only canOverrideTicketClaim users may take it
+ticketRouter.patch('/:id/claim', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
+  try {
+    const user = req.session.user;
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    if (ticket.claimed_by && ticket.claimed_by !== user.id) {
+      if (!user.permissions.canOverrideTicketClaim) {
+        return res.status(403).json({ error: 'Ticket already claimed. Only Sr. Management+ can override.' });
+      }
+    }
+
+    const wasClaimedBy = ticket.claimed_by;
+    await db('tickets')
+      .where('id', ticket.id)
+      .update({ claimed_by: user.id, claimed_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+
+    await logAction(
+      wasClaimedBy && wasClaimedBy !== user.id ? 'ticket_claim_overridden' : 'ticket_claimed',
+      user.username,
+      ticket.id,
+      wasClaimedBy && wasClaimedBy !== user.id ? { previous_claimer_id: wasClaimedBy } : null
+    );
+
+    const fresh = await loadTicketForBroadcast(ticket.id);
+    broadcast(req.app, 'update_ticket', { ticket: fresh, sender_sid: req.sessionID });
+    res.json({ success: true, ticket: fresh });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /api/tickets/:id/unclaim — claimer themselves OR override-permission
+ticketRouter.patch('/:id/unclaim', requireAuth, requirePermission('canViewStaffPanel'), async (req, res) => {
+  try {
+    const user = req.session.user;
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    if (!ticket.claimed_by) return res.status(400).json({ error: 'Ticket is not claimed' });
+    if (ticket.claimed_by !== user.id && !user.permissions.canOverrideTicketClaim) {
+      return res.status(403).json({ error: 'Only the claimer or Sr. Management+ can unclaim' });
+    }
+
+    await db('tickets')
+      .where('id', ticket.id)
+      .update({ claimed_by: null, claimed_at: null, updated_at: new Date().toISOString() });
+    await logAction('ticket_unclaimed', user.username, ticket.id);
+
+    const fresh = await loadTicketForBroadcast(ticket.id);
+    broadcast(req.app, 'update_ticket', { ticket: fresh, sender_sid: req.sessionID });
+    res.json({ success: true, ticket: fresh });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // PATCH /api/tickets/:id/reopen — staff only

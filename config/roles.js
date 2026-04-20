@@ -57,6 +57,7 @@ const PERMISSIONS = {
     canViewActivity:       true,
     canManageUsers:        true,
     canForceLogout:        true,
+    canOverrideTicketClaim: true,
     subTier: 'legend',
   },
 
@@ -73,6 +74,7 @@ const PERMISSIONS = {
     canViewActivity:       true,
     canManageUsers:        true,
     canForceLogout:        false,
+    canOverrideTicketClaim: true,
     subTier: 'legend',
   },
 
@@ -201,6 +203,7 @@ const PERMISSIONS = {
     canViewActivity:       true,
     canManageUsers:        true,
     canForceLogout:        true,
+    canOverrideTicketClaim: true,
     subTier: 'legend',
   },
 

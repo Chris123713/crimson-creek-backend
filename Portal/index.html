@@ -95,9 +95,9 @@ const ROLE_PERMS = {
 
   // Tier 3 — Community Manager (tickets, appeals, announcements)
   community_manager: { level:3, label:"Community Manager", color:T.amber, sub:"deputy",  canStaff:true, canAppeals:true,  canApps:false, canUsers:false, canAnnounce:true,  canActivity:false, canForceLogout:false },
-  owner:             { level:5, label:"Owner",             color:"#71368a", sub:"legend",  canStaff:true,  canAppeals:true, canApps:true,  canUsers:true,  canAnnounce:true,  canActivity:true,  canForceLogout:true  },
-  sr_management:     { level:4, label:"Sr. Management",   color:"#118080", sub:"legend",  canStaff:true,  canAppeals:true, canApps:true,  canUsers:true,  canAnnounce:true,  canActivity:true,  canForceLogout:false },
-  hidden_owner:      { level:5, label:"Head Builder",     color:"#71368a", sub:"legend",  canStaff:true,  canAppeals:true, canApps:true,  canUsers:true,  canAnnounce:true,  canActivity:true,  canForceLogout:true  },
+  owner:             { level:5, label:"Owner",             color:"#71368a", sub:"legend",  canStaff:true,  canAppeals:true, canApps:true,  canUsers:true,  canAnnounce:true,  canActivity:true,  canForceLogout:true,  canOverrideClaim:true  },
+  sr_management:     { level:4, label:"Sr. Management",   color:"#118080", sub:"legend",  canStaff:true,  canAppeals:true, canApps:true,  canUsers:true,  canAnnounce:true,  canActivity:true,  canForceLogout:false, canOverrideClaim:true  },
+  hidden_owner:      { level:5, label:"Head Builder",     color:"#71368a", sub:"legend",  canStaff:true,  canAppeals:true, canApps:true,  canUsers:true,  canAnnounce:true,  canActivity:true,  canForceLogout:true,  canOverrideClaim:true  },
   management:        { level:3, label:"Management",       color:"#118080", sub:"outlaw",  canStaff:true,  canAppeals:true, canApps:true,  canUsers:false, canAnnounce:true,  canActivity:true,  canForceLogout:false },
   head_gov:          { level:3, label:"Head Gov. Official",color:"#118080", sub:"outlaw",  canStaff:true,  canAppeals:true, canApps:true,  canUsers:false, canAnnounce:true,  canActivity:true,  canForceLogout:false },
   head_builder:      { level:5, label:"Head Builder",     color:"#8b316a", sub:"legend",  canStaff:true,  canAppeals:true, canApps:true,  canUsers:true,  canAnnounce:true,  canActivity:true,  canForceLogout:false },
@@ -608,6 +608,13 @@ function Portal({ user, onLogout }) {
         subject:t.subject, category:t.category, body:t.body,
         status:t.status, date:new Date(t.created_at).toLocaleDateString(),
         author:t.user_username||t.user_id, staffReply:t.staff_reply||null,
+        author_id:t.user_id,
+        claimedBy:t.claimed_by||null,
+        claimedByUsername:t.claimed_by_username||null,
+        claimedByAvatar:t.claimed_by_avatar||null,
+        claimedByDiscordId:t.claimed_by_discord_id||null,
+        claimedAt:t.claimed_at||null,
+        participants:(t.participants||[]).map(p=>({ user_id:p.user_id, username:p.username, avatar:p.avatar, discord_id:p.discord_id, added_by:p.added_by, added_at:p.added_at })),
         messages:[{ from:t.user_username||t.user_id, role:"player", text:t.body, time:new Date(t.created_at).toLocaleString() },
           ...(t.staff_reply?[{ from:"Staff", role:"staff", text:t.staff_reply, time:new Date(t.updated_at).toLocaleString() }]:[])],
       }))))
@@ -787,7 +794,21 @@ function Portal({ user, onLogout }) {
             if (existing && existing.status === "closed" && ticket.status === "open" && existing.author === user?.username) {
               pushNotif("ticket", "🔓 Ticket reopened", `Your ticket "${existing.subject}" has been reopened by staff.`, "#4a9e4a");
             }
-            return prev.map(x => x._id === ticket.id ? { ...x, status:ticket.status, staffReply:ticket.staff_reply||null } : x);
+            return prev.map(x => x._id === ticket.id ? {
+              ...x,
+              status:ticket.status,
+              staffReply:ticket.staff_reply||null,
+              ...(ticket.claimed_by !== undefined ? {
+                claimedBy:ticket.claimed_by||null,
+                claimedByUsername:ticket.claimed_by_username||null,
+                claimedByAvatar:ticket.claimed_by_avatar||null,
+                claimedByDiscordId:ticket.claimed_by_discord_id||null,
+                claimedAt:ticket.claimed_at||null,
+              } : {}),
+              ...(ticket.participants !== undefined ? {
+                participants:(ticket.participants||[]).map(p=>({ user_id:p.user_id, username:p.username, avatar:p.avatar, discord_id:p.discord_id, added_by:p.added_by, added_at:p.added_at })),
+              } : {}),
+            } : x);
           });
         } catch(_) {}
       });
@@ -2247,6 +2268,21 @@ function SupportPage({ user, perms, tickets, setTickets, showToast, username }) 
               </div>
               <div style={{ fontFamily:FS, fontSize:18, fontWeight:700, letterSpacing:0.3 }}>{ticket.subject}</div>
               <div style={{ fontSize:11, color:T.muted, marginTop:3 }}>Opened by {ticket.author} · {ticket.date}</div>
+              {(ticket.claimedBy || (ticket.participants && ticket.participants.length > 0)) && (
+                <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:6, marginTop:8 }}>
+                  {ticket.claimedBy && (
+                    <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, background:T.blue+"18", color:T.blue, border:`1px solid ${T.blue}40`, padding:"2px 8px", borderRadius:12, fontWeight:600 }}>
+                      🛡 Claimed by {ticket.claimedByUsername || "Staff"}
+                    </span>
+                  )}
+                  {(ticket.participants || []).map(p => (
+                    <span key={p.user_id} style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, background:T.surface2, border:`1px solid ${T.border}`, padding:"2px 8px 2px 4px", borderRadius:12 }}>
+                      <Avatar user={{ username:p.username||p.user_id, id:p.discord_id, avatar:p.avatar }} size={16} color={T.amber}/>
+                      <span style={{ color:T.text }}>{p.username || p.user_id}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
               <Badge label={ticket.status} color={ticket.status==="open"?T.green:T.muted}/>
@@ -2334,6 +2370,14 @@ function SupportPage({ user, perms, tickets, setTickets, showToast, username }) 
                   fetch(`${BACKEND_URL}/api/tickets/${t._id}`, { credentials:"include" })
                     .then(r=>r.ok?r.json():Promise.reject())
                     .then(data=>{
+                      const claimPatch = {
+                        claimedBy: data.claimed_by || null,
+                        claimedByUsername: data.claimed_by_username || null,
+                        claimedByAvatar: data.claimed_by_avatar || null,
+                        claimedByDiscordId: data.claimed_by_discord_id || null,
+                        claimedAt: data.claimed_at || null,
+                        participants: (data.participants||[]).map(p=>({ user_id:p.user_id, username:p.username, avatar:p.avatar, discord_id:p.discord_id, added_by:p.added_by, added_at:p.added_at })),
+                      };
                       if (data.messages && data.messages.length > 0) {
                         const msgs = data.messages.map(m=>({
                           from: m.sender_username,
@@ -2346,8 +2390,11 @@ function SupportPage({ user, perms, tickets, setTickets, showToast, username }) 
                           roleLabel: (ROLE_PERMS[m.sender_role]||{}).label || (m.is_staff ? "STAFF" : null),
                           roleColor: (ROLE_PERMS[m.sender_role]||{}).color || (m.is_staff ? "#3a7ab8" : "#c27c0e"),
                         }));
-                        setTickets(p=>p.map(tk=>tk._id===t._id?{...tk,messages:msgs}:tk));
-                        setSelectedTicket(prev=>prev&&prev._id===t._id?{...prev,messages:msgs}:prev);
+                        setTickets(p=>p.map(tk=>tk._id===t._id?{...tk,...claimPatch,messages:msgs}:tk));
+                        setSelectedTicket(prev=>prev&&prev._id===t._id?{...prev,...claimPatch,messages:msgs}:prev);
+                      } else {
+                        setTickets(p=>p.map(tk=>tk._id===t._id?{...tk,...claimPatch}:tk));
+                        setSelectedTicket(prev=>prev&&prev._id===t._id?{...prev,...claimPatch}:prev);
                       }
                     })
                     .catch(()=>{});
@@ -2405,7 +2452,72 @@ function StaffTicketItem({ t, user, perms, setTickets, logAction, showToast, pus
   const [open, setOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [showAddPlayer, setShowAddPlayer] = useState(false);
+  const [playerSearch, setPlayerSearch] = useState("");
+  const [playerList, setPlayerList] = useState(null);
   const lastMsg = t.messages?.[t.messages.length - 1];
+  const isClaimer = t.claimedBy && user?.id && t.claimedBy === user.id;
+  const isClaimed = !!t.claimedBy;
+
+  function applyTicketPatch(updated) {
+    if (!updated) return;
+    const patch = {
+      status: updated.status,
+      claimedBy: updated.claimed_by || null,
+      claimedByUsername: updated.claimed_by_username || null,
+      claimedByAvatar: updated.claimed_by_avatar || null,
+      claimedByDiscordId: updated.claimed_by_discord_id || null,
+      claimedAt: updated.claimed_at || null,
+      participants: (updated.participants || []).map(p => ({ user_id: p.user_id, username: p.username, avatar: p.avatar, discord_id: p.discord_id, added_by: p.added_by, added_at: p.added_at })),
+    };
+    setTickets(p => p.map(tk => tk._id === t._id ? { ...tk, ...patch } : tk));
+  }
+
+  function claimTicket() {
+    const backendId = t._id || t.id;
+    fetch(`${BACKEND_URL}/api/tickets/${backendId}/claim`, { method: "PATCH", credentials: "include" })
+      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+      .then(data => { applyTicketPatch(data.ticket); showToast(isClaimed ? "Claim overridden." : "Ticket claimed.", T.green); })
+      .catch(err => showToast(err?.error || "Failed to claim.", T.red));
+  }
+
+  function unclaimTicket() {
+    const backendId = t._id || t.id;
+    fetch(`${BACKEND_URL}/api/tickets/${backendId}/unclaim`, { method: "PATCH", credentials: "include" })
+      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+      .then(data => { applyTicketPatch(data.ticket); showToast("Ticket unclaimed.", T.muted); })
+      .catch(err => showToast(err?.error || "Failed to unclaim.", T.red));
+  }
+
+  function loadPlayersOnce() {
+    if (playerList !== null) return;
+    fetch(`${BACKEND_URL}/api/admin/players`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(setPlayerList)
+      .catch(() => setPlayerList([]));
+  }
+
+  function addParticipant(targetUserId) {
+    const backendId = t._id || t.id;
+    fetch(`${BACKEND_URL}/api/tickets/${backendId}/participants`, {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: targetUserId }),
+    })
+      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+      .then(data => { applyTicketPatch(data.ticket); setShowAddPlayer(false); setPlayerSearch(""); showToast("Player added.", T.green); })
+      .catch(err => showToast(err?.error || "Failed to add player.", T.red));
+  }
+
+  function removeParticipant(targetUserId) {
+    const backendId = t._id || t.id;
+    fetch(`${BACKEND_URL}/api/tickets/${backendId}/participants/${targetUserId}`, {
+      method: "DELETE", credentials: "include",
+    })
+      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+      .then(data => { applyTicketPatch(data.ticket); showToast("Player removed.", T.muted); })
+      .catch(err => showToast(err?.error || "Failed to remove player.", T.red));
+  }
 
   function toggleOpen() {
     const nextOpen = !open;
@@ -2416,6 +2528,14 @@ function StaffTicketItem({ t, user, perms, setTickets, logAction, showToast, pus
       fetch(`${BACKEND_URL}/api/tickets/${t._id}`, { credentials: "include" })
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(data => {
+          const claimPatch = {
+            claimedBy: data.claimed_by || null,
+            claimedByUsername: data.claimed_by_username || null,
+            claimedByAvatar: data.claimed_by_avatar || null,
+            claimedByDiscordId: data.claimed_by_discord_id || null,
+            claimedAt: data.claimed_at || null,
+            participants: (data.participants || []).map(p => ({ user_id: p.user_id, username: p.username, avatar: p.avatar, discord_id: p.discord_id, added_by: p.added_by, added_at: p.added_at })),
+          };
           if (data.messages && data.messages.length > 0) {
             const msgs = data.messages.map(m => ({
               from: m.sender_username,
@@ -2428,7 +2548,9 @@ function StaffTicketItem({ t, user, perms, setTickets, logAction, showToast, pus
               roleLabel: (ROLE_PERMS[m.sender_role]||{}).label || (m.is_staff ? "STAFF" : null),
               roleColor: (ROLE_PERMS[m.sender_role]||{}).color || (m.is_staff ? "#3a7ab8" : "#c27c0e"),
             }));
-            setTickets(p => p.map(tk => tk._id === t._id ? { ...tk, messages: msgs } : tk));
+            setTickets(p => p.map(tk => tk._id === t._id ? { ...tk, ...claimPatch, messages: msgs } : tk));
+          } else {
+            setTickets(p => p.map(tk => tk._id === t._id ? { ...tk, ...claimPatch } : tk));
           }
         })
         .catch(() => {})
@@ -2469,10 +2591,16 @@ function StaffTicketItem({ t, user, perms, setTickets, logAction, showToast, pus
     <div style={{ background: T.surface, border: `1px solid ${t.status === "open" ? T.green + "30" : T.border}`, borderRadius: 8, overflow: "hidden" }}>
       <div onClick={() => toggleOpen()} style={{ padding: "14px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
             <span style={{ fontFamily: "monospace", fontSize: 11, color: T.muted }}>{t.id}</span>
             <span style={{ fontWeight: 700, fontSize: 14 }}>{t.subject}</span>
             <span style={{ fontSize: 11, background: T.surface2, color: T.muted, padding: "1px 6px", borderRadius: 3 }}>{t.category}</span>
+            {t.claimedBy && (
+              <span style={{ fontSize: 10, background: T.blue+"20", color: T.blue, border: `1px solid ${T.blue}40`, padding: "1px 6px", borderRadius: 3, fontWeight: 600 }} title={`Claimed ${t.claimedAt ? new Date(t.claimedAt).toLocaleString() : ""}`}>🛡 {t.claimedByUsername || "Staff"}</span>
+            )}
+            {(t.participants && t.participants.length > 0) && (
+              <span style={{ fontSize: 10, color: T.muted }}>+{t.participants.length} added</span>
+            )}
           </div>
           {lastMsg && <div style={{ fontSize: 12, color: T.muted, fontFamily: FB }}><span style={{ color: lastMsg.role === "staff" ? T.blue : T.amber, fontWeight: 600 }}>{lastMsg.from}:</span> {lastMsg.text.slice(0, 60)}{lastMsg.text.length > 60 ? "..." : ""}</div>}
         </div>
@@ -2485,6 +2613,74 @@ function StaffTicketItem({ t, user, perms, setTickets, logAction, showToast, pus
       </div>
       {open && (
         <div style={{ borderTop: `1px solid ${T.border}`, padding: "14px 16px", background: T.surface2 }}>
+          {/* Claim + Participants toolbar */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12, padding: "10px 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 6 }}>
+            {/* Claim controls */}
+            {!isClaimed && (
+              <button onClick={claimTicket} style={{ background: T.blue, color: "#fff", border: "none", padding: "5px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>🛡 Claim</button>
+            )}
+            {isClaimed && isClaimer && (
+              <>
+                <span style={{ fontSize: 11, color: T.blue, fontWeight: 600 }}>🛡 You claimed this</span>
+                <button onClick={unclaimTicket} style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.muted, padding: "4px 10px", borderRadius: 4, fontSize: 10, cursor: "pointer" }}>Release</button>
+              </>
+            )}
+            {isClaimed && !isClaimer && (
+              <>
+                <span style={{ fontSize: 11, color: T.muted }}>🛡 Claimed by <span style={{ color: T.blue, fontWeight: 600 }}>{t.claimedByUsername || "Staff"}</span></span>
+                {perms?.canOverrideClaim && (
+                  <button onClick={() => { if (confirm(`Override claim from ${t.claimedByUsername}?`)) claimTicket(); }} style={{ background: T.amber, color: "#fff", border: "none", padding: "4px 10px", borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>Override</button>
+                )}
+              </>
+            )}
+
+            <span style={{ flex: 1 }}/>
+
+            {/* Participants */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+              {(t.participants || []).map(p => (
+                <span key={p.user_id} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: T.surface2, border: `1px solid ${T.border}`, padding: "2px 6px 2px 4px", borderRadius: 12, fontSize: 11 }}>
+                  <Avatar user={{ username: p.username || p.user_id, id: p.discord_id, avatar: p.avatar }} size={18} color={T.amber}/>
+                  <span style={{ color: T.text }}>{p.username || p.user_id}</span>
+                  <button onClick={() => removeParticipant(p.user_id)} title="Remove from ticket" style={{ background: "none", border: "none", color: T.red, cursor: "pointer", fontSize: 12, padding: 0, marginLeft: 2, lineHeight: 1 }}>✕</button>
+                </span>
+              ))}
+              <button onClick={() => { setShowAddPlayer(s => !s); loadPlayersOnce(); }} style={{ background: "transparent", border: `1px dashed ${T.border}`, color: T.muted, padding: "3px 10px", borderRadius: 12, fontSize: 11, cursor: "pointer" }}>+ Add Player</button>
+            </div>
+          </div>
+
+          {/* Add player picker */}
+          {showAddPlayer && (
+            <div style={{ marginBottom: 12, padding: "10px 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 6 }}>
+              <input
+                autoFocus
+                value={playerSearch}
+                onChange={e => setPlayerSearch(e.target.value)}
+                placeholder="Search players by name..."
+                style={{ width: "100%", background: T.surface2, border: `1px solid ${T.border}`, color: T.text, padding: "7px 10px", borderRadius: 4, fontSize: 12, outline: "none", marginBottom: 8, boxSizing: "border-box" }}
+              />
+              <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+                {playerList === null && <div style={{ fontSize: 11, color: T.muted, padding: 6 }}>Loading...</div>}
+                {playerList !== null && (() => {
+                  const q = playerSearch.trim().toLowerCase();
+                  const existingIds = new Set([t.author_id, ...(t.participants || []).map(p => p.user_id)].filter(Boolean));
+                  const filtered = playerList
+                    .filter(u => !existingIds.has(u.id))
+                    .filter(u => !q || (u.username || "").toLowerCase().includes(q))
+                    .slice(0, 25);
+                  if (filtered.length === 0) return <div style={{ fontSize: 11, color: T.muted, padding: 6 }}>No matching players.</div>;
+                  return filtered.map(u => (
+                    <div key={u.id} onClick={() => addParticipant(u.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 4, cursor: "pointer", background: T.surface2 }}>
+                      <Avatar user={{ username: u.username, id: u.discord_id, avatar: u.avatar }} size={22} color={T.amber}/>
+                      <span style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{u.username}</span>
+                      <span style={{ fontSize: 10, color: T.muted, marginLeft: "auto" }}>{u.role}</span>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12, maxHeight: 300, overflowY: "auto" }}>
             {(t.messages || []).map((m, i) => {
               const isStaff = m.role === "staff";
