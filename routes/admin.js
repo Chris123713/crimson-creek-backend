@@ -194,6 +194,12 @@ ticketRouter.post('/:id/message', requireAuth, async (req, res) => {
 
     const isStaff = !!user.permissions.canViewStaffPanel;
 
+    // Claim lock: if ticket is claimed and this staff member isn't the claimer,
+    // only Sr. Management+ (canOverrideTicketClaim) can post.
+    if (isStaff && ticket.claimed_by && ticket.claimed_by !== user.id && !user.permissions.canOverrideTicketClaim) {
+      return res.status(403).json({ error: 'Ticket is claimed by another staff member. Only Sr. Management+ can override.' });
+    }
+
     const [inserted] = await db('ticket_messages').insert({
       ticket_id: ticket.id,
       sender_id: user.id,
@@ -231,6 +237,8 @@ ticketRouter.post('/:id/message', requireAuth, async (req, res) => {
       ticket: updatedTicket,
       sender_sid: req.sessionID,
     });
+
+    notifyTicketRecipients(ticket.id, message).catch(() => {});
 
     res.json({ success: true, message });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -395,6 +403,12 @@ ticketRouter.patch('/:id/reply', requireAuth, requirePermission('canViewStaffPan
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
 
     const user = req.session.user;
+
+    // Claim lock: same rule as the message endpoint
+    if (ticket.claimed_by && ticket.claimed_by !== user.id && !user.permissions.canOverrideTicketClaim) {
+      return res.status(403).json({ error: 'Ticket is claimed by another staff member. Only Sr. Management+ can override.' });
+    }
+
     const [inserted] = await db('ticket_messages').insert({
       ticket_id: ticket.id,
       sender_id: user.id,
@@ -431,6 +445,8 @@ ticketRouter.patch('/:id/reply', requireAuth, requirePermission('canViewStaffPan
       ticket: updatedTicket,
       sender_sid: req.sessionID,
     });
+
+    notifyTicketRecipients(ticket.id, message).catch(() => {});
 
     res.json({ success: true, message });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -825,6 +841,102 @@ ticketRouter.delete('/:id', requireAuth, requirePermission('canManageUsers'), as
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── DM notifications for ticket replies ──────────────────────────────────────
+// When a new message is posted on a ticket, DM everyone else who should see it:
+//   - Staff reply → owner + all participants
+//   - Player/participant reply → claiming staff (if any) + owner + other participants
+// Each DM shows a conversation preview plus a Reply button (handled by the bot).
+async function notifyTicketRecipients(ticketId, newMessage) {
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (!botToken || !newMessage) return;
+  try {
+    const fetch = require('node-fetch');
+    const ticket = await db('tickets').where('id', ticketId).first();
+    if (!ticket) return;
+
+    const recipientIds = new Set();
+    const participantIds = await db('ticket_participants').where('ticket_id', ticketId).pluck('user_id');
+
+    if (newMessage.is_staff) {
+      recipientIds.add(ticket.user_id);
+      for (const p of participantIds) recipientIds.add(p);
+    } else {
+      if (ticket.claimed_by) recipientIds.add(ticket.claimed_by);
+      recipientIds.add(ticket.user_id);
+      for (const p of participantIds) recipientIds.add(p);
+    }
+    recipientIds.delete(String(newMessage.sender_id));
+    recipientIds.delete(newMessage.sender_id);
+    if (recipientIds.size === 0) return;
+
+    // users.id === discord_id in this project, but resolve via users table to be safe
+    const userRows = await db('users').whereIn('id', [...recipientIds]).select('id', 'discord_id');
+    const discordIdByUserId = Object.fromEntries(userRows.map(u => [u.id, u.discord_id || u.id]));
+
+    const recent = await db('ticket_messages')
+      .where('ticket_id', ticketId)
+      .orderBy('created_at', 'desc')
+      .limit(5);
+    const convo = recent.reverse();
+
+    const convoText = convo.map(m => {
+      const who = m.is_staff ? '🛡️ Staff' : '👤 Player';
+      const arrow = m.id === newMessage.id ? '➤ ' : '';
+      const preview = m.body.length > 180 ? m.body.slice(0, 180) + '…' : m.body;
+      return `${arrow}**${who}** · ${m.sender_username}\n${preview}`;
+    }).join('\n\n');
+
+    const senderRole = newMessage.is_staff ? 'Staff' : 'Player';
+    const bodyPreview = newMessage.body.length > 500 ? newMessage.body.slice(0, 500) + '…' : newMessage.body;
+    const quoted = bodyPreview.replace(/\n/g, '\n> ');
+
+    let description =
+      `**Subject:** ${ticket.subject}\n` +
+      `**${senderRole}:** ${newMessage.sender_username}\n\n` +
+      `> ${quoted}\n\n` +
+      `━━━━━━━━━━━━\n**Recent conversation**\n\n${convoText}`;
+    if (description.length > 4000) description = description.slice(0, 3990) + '\n…';
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const embed = {
+      title: `🎫 New reply on Ticket #${ticket.id}`,
+      description,
+      color: newMessage.is_staff ? 0xc9963a : 0x4a9e4a,
+      footer: { text: 'Crimson Creek RP — Click Reply to respond from Discord' },
+      timestamp: new Date().toISOString(),
+    };
+    const components = [{
+      type: 1,
+      components: [
+        { type: 2, style: 1, custom_id: `ticket_reply_${ticket.id}`, label: '💬 Reply' },
+        { type: 2, style: 5, url: frontendUrl, label: 'Open Site' },
+      ],
+    }];
+
+    for (const uid of recipientIds) {
+      const discordId = discordIdByUserId[uid] || uid;
+      if (!discordId) continue;
+      try {
+        const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
+          method: 'POST',
+          headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipient_id: discordId }),
+        });
+        if (!dmRes.ok) continue;
+        const dmChannel = await dmRes.json();
+        if (!dmChannel.id) continue;
+        await fetch(`https://discord.com/api/v10/channels/${dmChannel.id}/messages`, {
+          method: 'POST',
+          headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ embeds: [embed], components }),
+        });
+      } catch (_) { /* swallow per-recipient failures */ }
+    }
+  } catch (e) {
+    console.error('Ticket DM notification failed:', e);
+  }
+}
+
 // ── SSE broadcast helpers ─────────────────────────────────────────────────────
 
 // Broadcasts to ALL connected SSE clients (staff + players)
@@ -1011,4 +1123,4 @@ adminRouter.get('/sse-session', requireAuth, (req, res) => {
 });
 
 
-module.exports = { ticketRouter, adminRouter, broadcast };
+module.exports = { ticketRouter, adminRouter, broadcast, notifyTicketRecipients };

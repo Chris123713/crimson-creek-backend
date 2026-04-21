@@ -212,4 +212,67 @@ router.post('/announcements', requireBotAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── POST /api/bot/tickets/:id/message ────────────────────────────────────────
+// Called by the Discord bot when a player/staff submits the Reply modal from a DM.
+// Body: { user_id, body } — user_id is the Discord snowflake of whoever clicked Reply.
+router.post('/tickets/:id/message', requireBotAuth, async (req, res) => {
+  try {
+    const { user_id, body } = req.body;
+    if (!user_id || !body?.trim()) return res.status(400).json({ error: 'user_id and body required' });
+
+    const ticket = await db('tickets').where('id', req.params.id).first();
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    if (ticket.status === 'closed') return res.status(400).json({ error: 'This ticket is closed. Open the site to reopen it.' });
+
+    const user = await db('users').where('discord_id', user_id).first();
+    if (!user) return res.status(404).json({ error: 'User not found. Log in to the site at least once first.' });
+
+    let perms = {};
+    try { perms = JSON.parse(user.permissions || '{}'); } catch (_) {}
+    const isStaff = !!perms.canViewStaffPanel;
+
+    // Access check: owner, participant, or staff
+    const isOwner = ticket.user_id === user.id;
+    const isParticipant = isOwner ? false : !!(await db('ticket_participants')
+      .where({ ticket_id: ticket.id, user_id: user.id }).first());
+    if (!isOwner && !isParticipant && !isStaff) {
+      return res.status(403).json({ error: 'You do not have access to this ticket.' });
+    }
+
+    // Claim lock for staff
+    if (isStaff && ticket.claimed_by && ticket.claimed_by !== user.id && !perms.canOverrideTicketClaim) {
+      return res.status(403).json({ error: 'Ticket is claimed by another staff member.' });
+    }
+
+    const [inserted] = await db('ticket_messages').insert({
+      ticket_id: ticket.id,
+      sender_id: user.id,
+      sender_username: user.username,
+      is_staff: isStaff,
+      body: body.trim(),
+    }).returning('id');
+    const msgId = inserted?.id ?? inserted;
+
+    await db('tickets').where('id', ticket.id).update({ updated_at: new Date().toISOString() });
+    await logAction('ticket_message', user.username, ticket.id, { preview: body.trim().slice(0, 80), via: 'discord_bot' });
+
+    const message = await db('ticket_messages')
+      .leftJoin('users', 'ticket_messages.sender_id', 'users.id')
+      .select('ticket_messages.*', 'users.avatar as sender_avatar', 'users.discord_id as sender_discord_id', 'users.role as sender_role')
+      .where('ticket_messages.id', msgId)
+      .first();
+    const updatedTicket = await db('tickets')
+      .leftJoin('users', 'tickets.user_id', 'users.id')
+      .select('tickets.*', 'users.username as user_username', 'users.avatar as user_avatar')
+      .where('tickets.id', ticket.id)
+      .first();
+
+    const { broadcast, notifyTicketRecipients } = require('./admin');
+    broadcast(req.app, 'ticket_message', { ticket_id: ticket.id, message, ticket: updatedTicket });
+    notifyTicketRecipients(ticket.id, message).catch(() => {});
+
+    res.json({ success: true, message });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
